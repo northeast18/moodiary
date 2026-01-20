@@ -1,0 +1,49 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: ✨ Features
+    labels:
+      - feat
+  - title: 🐛 Bug Fixes
+    labels:
+      - fix
+  - title: 🛠️ Chores
+    labels:
+      - chore
+  - title: 📚 Documentation Updates
+    labels:
+      - docs
+  - title: 🎨 Code Style Updates
+    labels:
+      - style
+  - title: 🔨 Refactors
+    labels:
+      - refactor
+  - title: ⚡ Performance Improvements
+    labels:
+      - perf
+  - title: ✅ Tests
+    labels:
+      - test
+  - title: 🏗️ Build System
+    labels:
+      - build
+  - title: 🧹 CI/CD Changes
+    labels:
+      - ci
+  - title: ⏪ Reverts
+    labels:
+      - revert
+  - title: ❓ What is This
+    labels:
+      - '?'
+
+change-template: '- $TITLE (#$NUMBER) by @$AUTHOR'
+template: |
+  # 🔥 What's Changed
+
+  $CHANGES
+
+  ---
+  🔖 Compare Changes: [View Changes](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION)
