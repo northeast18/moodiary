@@ -15,6 +15,18 @@
   <img src="https://img.shields.io/github/license/ZhuJHua/moodiary?style=for-the-badge&color=4ac6b7">
 </div>
 
+## 📌 Project Notes
+
+This is a modified version of [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary).
+
+**Note:** The original author has stopped updating this project for a long time. Since many users are using this app, some bugs and new feature requests have been discovered in the community but there is no maintenance. I have made some modifications and feature enhancements based on the original author's work, including:
+
+- ✅ Fixed known bugs
+- ✅ Added custom diary cover feature
+- ✅ Added custom diary background feature
+
+Issues and pull requests are welcome to improve this project together.
+
 
 ## ✨ Feature
 

@@ -15,6 +15,18 @@
   <img src="https://img.shields.io/github/license/ZhuJHua/moodiary?style=for-the-badge&color=4ac6b7">
 </div>
 
+## 📌 项目说明
+
+本项目是基于 [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary) 的修改版本。
+
+**注意：** 原作者已停止更新很长时间。由于该应用有大量用户在使用，在社区中发现了一些 bug 和新需求，但无人维护。本人在原作者的基础上进行了一些修改和功能增强，包括：
+
+- ✅ 修复已知 bug
+- ✅ 添加自定义日记封面功能
+- ✅ 添加自定义日记背景功能
+
+欢迎提 issue 和 pull request，共同完善这个项目。
+
 
 
 ## ✨ 功能特性
