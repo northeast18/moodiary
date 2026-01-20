@@ -177,24 +177,4 @@ This project is licensed under the AGPL-3.0 LICENSE, see the [LICENSE](LICENSE) 
 - Thanks to the Flutter team for the excellent framework.
 - Special thanks to the open source community for their valuable contributions.
 
-## 🥪 Sponsor
 
-You can buy me a sandwich to keep me motivated to continue developing.
-
-<img src="res/sponsor/wechat.jpg" style="width:300px"  alt="Sponsor"/>
-
-### List of sponsors
-
-If you want to appear on the list, you can leave your Github username in the comment, in no particular order, and the list will be updated regularly.
-
-| Sponsor                           | Price    | Sponsor                                          | Price  |
-|-----------------------------------| -------- | ------------------------------------------------ | ------ |
-| [dsxksss](https://github.com/dsxksss) | 50 CNY   | 十*                                            | 20 CNY |
-| 沭**                             | 10 CNY   | 朱东杰                                           | 60 CNY |
-| *Person*                    | 5 CNY    | wu*                                             | 10 CNY |
-| 云*                               | 2.76 CNY | 不对味的雪碧                                     | 10 CNY |
-| w**                        | 6.6 CNY  | [帕斯卡的芦苇](https://github.com/xiaoxianzi-99) | 10 CNY |
-| 不** | 20 CNY | 曾** | 20 CNY |
-| *Person* | 20 CNY | *Person* | 18.88 CNY |
-| Lucci | 9.9 CNY | *Person* | 5 CNY |
-| 宋** | 5 CNY | 翰** | 5 CNY |
