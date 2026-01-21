@@ -164,7 +164,7 @@ class _ImagesViewState extends State<ImagesView> {
         );
       },
       child: Hero(
-        tag: '$heroPrefix$0',
+        tag: '${heroPrefix}0',
         child: Image.file(
           File(fileName.startsWith('cover-') 
               ? CustomImageUtil.getCoverPath(fileName)

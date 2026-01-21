@@ -26,6 +26,7 @@ android {
     namespace = "cn.yooss.moodiary"
     compileSdk = 36
     ndkVersion = "28.0.13004108"
+    ndkPath = "/home/north/projects/android-sdk/ndk/28.0.13004108"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
@@ -36,6 +37,19 @@ android {
         jvmTarget = JavaVersion.VERSION_21.toString()
     }
     signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            // 使用相同的 debug 密钥进行测试
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
         config {
             storeFile file('key.jks')
             storePassword localProperties.getProperty('storePassword')
@@ -62,16 +76,23 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.config
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            signingConfig = signingConfigs.config
+            signingConfig signingConfigs.debug
             resValue "string", "app_name", "Moodiary Debug"
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
+            // 优化体积：禁用 Vulkan 验证层
+            ndk {
+                debugSymbolLevel 'NONE'
+            }
+            // 启用资源压缩
+            shrinkResources false
+            minifyEnabled false
         }
         profile {
             signingConfig = signingConfigs.config

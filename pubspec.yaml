@@ -37,11 +37,12 @@ dependencies:
   flutter_colorpicker: 1.1.0
   geolocator: 14.0.0
   shared_preferences: 2.5.3
-  isar: 4.0.0-dev.14
+  isar: any
   isar_flutter_libs:
     git:
       url: https://github.com/ZhuJHua/isar
       path: packages/isar_flutter_libs
+      ref: main
   cached_network_image: 3.4.1
   audioplayers: 6.4.0
   record: 6.0.0
@@ -147,6 +148,7 @@ dev_dependencies:
 
 dependency_overrides:
   source_gen: 2.0.0
+  build: 2.4.2
   get_it: 8.0.3
   isar:
     git:

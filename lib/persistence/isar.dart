@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:isar/isar.dart';
 import 'package:latlong2/latlong.dart';
@@ -25,6 +26,7 @@ import 'package:uuid/uuid.dart';
 
 class IsarUtil {
   static late final Isar _isar;
+  static final logger = Logger();
 
   static final _schemas = [DiarySchema, CategorySchema, FontSchema];
 

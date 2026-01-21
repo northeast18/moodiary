@@ -1,0 +1,15 @@
+allprojects {
+    beforeEvaluate { project ->
+        def propsFile = new File(project.rootDir, 'local.properties')
+        if (propsFile.exists()) {
+            def props = new Properties()
+            propsFile.withInputStream { props.load(it) }
+            def sdkDir = props.getProperty('sdk.dir')
+            if (sdkDir != null && sdkDir.contains('usr/lib/android-sdk')) {
+                println "Forcing custom SDK path..."
+                props.setProperty('sdk.dir', '/home/north/projects/android-sdk')
+                propsFile.withOutputStream { props.store(it, null) }
+            }
+        }
+    }
+}

@@ -268,7 +268,7 @@ class DiaryDetailsPage extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
+              );
               return Stack(
                 children: [
                   if (state.diary.customBackgroundImage != null)
@@ -276,7 +276,7 @@ class DiaryDetailsPage extends StatelessWidget {
                       child: Image.file(
                         File(CustomImageUtil.getBackgroundPath(state.diary.customBackgroundImage!)),
                         fit: BoxFit.cover,
-                        color: Color(0x40000000),
+                        color: const Color(0x40000000),
                         colorBlendMode: BlendMode.darken,
                       ),
                     ),

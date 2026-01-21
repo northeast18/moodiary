@@ -697,7 +697,19 @@ class EditPage extends StatelessWidget {
             subtitle: GetBuilder<EditLogic>(
               id: 'CoverImage',
               builder: (_) {
-                return _buildCoverImage();
+                if (state.currentDiary.customCoverImage == null) {
+                  return const Text('无封面图', style: TextStyle(color: Colors.grey));
+                }
+                return Container(
+                  height: 100,
+                  decoration: BoxDecoration(
+                    borderRadius: AppBorderRadius.smallBorderRadius,
+                    image: DecorationImage(
+                      image: FileImage(File(CustomImageUtil.getCoverPath(state.currentDiary.customCoverImage!))),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                );
               },
             ),
             trailing: IconButton.filledTonal(
@@ -712,7 +724,19 @@ class EditPage extends StatelessWidget {
             subtitle: GetBuilder<EditLogic>(
               id: 'BackgroundImage',
               builder: (_) {
-                return _buildBackgroundImage();
+                if (state.currentDiary.customBackgroundImage == null) {
+                  return const Text('无背景图', style: TextStyle(color: Colors.grey));
+                }
+                return Container(
+                  height: 100,
+                  decoration: BoxDecoration(
+                    borderRadius: AppBorderRadius.smallBorderRadius,
+                    image: DecorationImage(
+                      image: FileImage(File(CustomImageUtil.getBackgroundPath(state.currentDiary.customBackgroundImage!))),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                );
               },
             ),
             trailing: IconButton.filledTonal(
@@ -1149,38 +1173,6 @@ class EditPage extends StatelessWidget {
             },
           ),
         ],
-      );
-    }
-
-    Widget _buildCoverImage() {
-      if (state.currentDiary.customCoverImage == null) {
-        return const Text('无封面图', style: TextStyle(color: Colors.grey));
-      }
-      return Container(
-        height: 100,
-        decoration: BoxDecoration(
-          borderRadius: AppBorderRadius.smallBorderRadius,
-          image: DecorationImage(
-            image: FileImage(File(CustomImageUtil.getCoverPath(state.currentDiary.customCoverImage!))),
-            fit: BoxFit.cover,
-          ),
-        ),
-      );
-    }
-
-    Widget _buildBackgroundImage() {
-      if (state.currentDiary.customBackgroundImage == null) {
-        return const Text('无背景图', style: TextStyle(color: Colors.grey));
-      }
-      return Container(
-        height: 100,
-        decoration: BoxDecoration(
-          borderRadius: AppBorderRadius.smallBorderRadius,
-          image: DecorationImage(
-            image: FileImage(File(CustomImageUtil.getBackgroundPath(state.currentDiary.customBackgroundImage!))),
-            fit: BoxFit.cover,
-          ),
-        ),
       );
     }
 

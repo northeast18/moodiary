@@ -480,7 +480,9 @@ class WebDavUtil {
         if (shouldEncrypt) {
           final userKey = await SecureStorageUtil.getValue('userKey');
           final key = await AesUtil.deriveKey(salt: finalFileName, userKey: userKey!);
-          fileBytes = await AesUtil.encrypt(key: key, data: fileBytes);
+          final base64Data = base64.encode(fileBytes);
+          final encryptedBytes = await AesUtil.encrypt(key: key, data: base64Data);
+          fileBytes = encryptedBytes;
         }
         
         _client!.setHeaders({
@@ -619,15 +621,17 @@ class WebDavUtil {
       final localFilePath = FileUtil.getRealPath(type, fileName);
 
       try {
-        Uint8List fileBytes = await _client!.read(serverFilePath);
-        
+        List<int> rawData = await _client!.read(serverFilePath);
+        Uint8List fileBytes = Uint8List.fromList(rawData);
+
         if (shouldEncrypt) {
           final userKey = await SecureStorageUtil.getValue('userKey');
           final key = await AesUtil.deriveKey(salt: baseFileName, userKey: userKey!);
-          fileBytes = await AesUtil.decrypt(
+          final decryptedString = await AesUtil.decrypt(
             key: key,
             encryptedData: fileBytes,
           );
+          fileBytes = base64.decode(decryptedString);
         }
         
         final file = File(localFilePath);
