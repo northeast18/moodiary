@@ -27,7 +27,6 @@ import 'package:moodiary/router/app_routes.dart';
 import 'package:moodiary/src/rust/api/jieba.dart';
 import 'package:moodiary/src/rust/api/kmp.dart';
 import 'package:moodiary/utils/file_util.dart';
-import 'package:moodiary/utils/custom_image_util.dart';
 import 'package:moodiary/utils/markdown_util.dart';
 import 'package:moodiary/utils/media_util.dart';
 import 'package:moodiary/utils/notice_util.dart';
@@ -310,6 +309,25 @@ class EditLogic extends GetxController {
     addNewImage(XFile.fromData(dataList, path: path)..saveTo(path));
   }
 
+  //选择背景图片
+  Future<void> pickBackgroundImage(BuildContext context) async {
+    final XFile? photo = await MediaUtil.pickPhoto(ImageSource.gallery);
+    if (photo != null && context.mounted) {
+      Navigator.pop(context);
+      state.backgroundImageFile = photo;
+      update(['edit-save']);
+    } else {
+      if (!context.mounted) return;
+      toast.info(message: context.l10n.cancelSelect);
+    }
+  }
+
+  //清除背景图片
+  void clearBackgroundImage() {
+    state.backgroundImageFile = null;
+    update(['edit-save']);
+  }
+
   //网络图片
   Future<void> networkImage(BuildContext context) async {
     toast.info(message: context.l10n.imageFetching);
@@ -401,93 +419,113 @@ class EditLogic extends GetxController {
     }
   }
 
-    //保存日记
+  //保存日记
   Future<void> saveDiary({required BuildContext context}) async {
     state.isSaving = true;
     update(['modal']);
-    // 根据文本中的实际内容移除不需要的资源
-    final originContent =
-        state.type == DiaryType.markdown
-            ? markdownTextEditingController!.text.trim()
-            : jsonEncode(quillController!.document.toDelta().toJson());
-    
-    // 构建文件名列表（相对路径），用于匹配
-    final imageNames = state.imageFileList
-        .map((file) => basename(file.path))
-        .where((name) => name.startsWith('image-'))
-        .toList();
-    final videoNames = state.videoFileList
-        .map((file) => basename(file.path))
-        .where((name) => name.startsWith('video-'))
-        .toList();
-    
-    final needImage = await Kmp.findMatches(
-      text: originContent,
-      patterns: imageNames,
-    );
-    final needVideo = await Kmp.findMatches(
-      text: originContent,
-      patterns: videoNames,
-    );
-    final needAudio = await Kmp.findMatches(
-      text: originContent,
-      patterns: state.audioNameList,
-    );
-    
-    // 使用文件名进行匹配，而不是路径
-    state.imageFileList.removeWhere((file) => !needImage.contains(basename(file.path)));
-    state.videoFileList.removeWhere((file) => !needVideo.contains(basename(file.path)));
-    state.audioNameList.removeWhere((name) => !needAudio.contains(name));
-    // 保存图片
-    final imageNameMap = await MediaUtil.saveImages(
-      imageFileList: state.imageFileList,
-    );
-    // 保存视频
-    final videoNameMap = await MediaUtil.saveVideo(
-      videoFileList: state.videoFileList,
-    );
-    //保存录音
-    final audioNameMap = await MediaUtil.saveAudio(state.audioNameList);
-    final content = await Kmp.replaceWithKmp(
-      text: originContent,
-      replacements: {...imageNameMap, ...videoNameMap, ...audioNameMap},
-    );
-    final contentText = _toPlainText().removeLineBreaks();
-    final tokenizer = await JiebaRs.cutAll(text: contentText);
-    final keywords = await JiebaRs.extractKeywordsTfidf(
-      text: contentText,
-      topK: BigInt.from(5),
-      allowedPos: [],
-    );
-    final sortByWeight = keywords..sort((a, b) => b.weight.compareTo(a.weight));
-    final sortedKeywords = sortByWeight.map((e) => e.keyword).toList();
-    state.currentDiary
-      ..title = titleTextEditingController.text
-      ..content = content
-      ..type = state.type.value
-      ..contentText = contentText
-      ..audioName = state.audioNameList
-      ..imageName = imageNameMap.values.toList()
-      ..videoName = videoNameMap.values.toList()
-      ..tokenizer = tokenizer
-      ..keywords = sortedKeywords
-      ..imageColor = await getCoverColor()
-      ..aspect = await getCoverAspect();
 
-    await IsarUtil.updateADiary(
-      oldDiary: state.originalDiary,
-      newDiary: state.currentDiary,
-    );
-    state.isNew
-        ? Get.back(result: state.currentDiary.categoryId ?? '')
-        : Get.back(result: 'changed');
-    if (!context.mounted) return;
-    toast.success(
-      message:
-          state.isNew
-              ? context.l10n.editSaveSuccess
-              : context.l10n.editChangeSuccess,
-    );
+    try {
+      // 根据文本中的实际内容移除不需要的资源
+      final originContent =
+          state.type == DiaryType.markdown
+              ? markdownTextEditingController!.text.trim()
+              : jsonEncode(quillController!.document.toDelta().toJson());
+      final needImage = await Kmp.findMatches(
+        text: originContent,
+        patterns: state.imagePathList,
+      );
+      final needVideo = await Kmp.findMatches(
+        text: originContent,
+        patterns: state.videoPathList,
+      );
+      final needAudio = await Kmp.findMatches(
+        text: originContent,
+        patterns: state.audioNameList,
+      );
+      state.imageFileList.removeWhere((file) => !needImage.contains(file.path));
+      state.videoFileList.removeWhere((file) => !needVideo.contains(file.path));
+      state.audioNameList.removeWhere((name) => !needAudio.contains(name));
+      // 保存图片
+      final imageNameMap = await MediaUtil.saveImages(
+        imageFileList: state.imageFileList,
+      );
+      // 保存视频
+      final videoNameMap = await MediaUtil.saveVideo(
+        videoFileList: state.videoFileList,
+      );
+      //保存录音
+      final audioNameMap = await MediaUtil.saveAudio(state.audioNameList);
+      final content = await Kmp.replaceWithKmp(
+        text: originContent,
+        replacements: {...imageNameMap, ...videoNameMap, ...audioNameMap},
+      );
+      final contentText = _toPlainText().removeLineBreaks();
+      final tokenizer = await JiebaRs.cutAll(text: contentText);
+      final keywords = await JiebaRs.extractKeywordsTfidf(
+        text: contentText,
+        topK: BigInt.from(5),
+        allowedPos: [],
+      );
+      final sortByWeight = keywords..sort((a, b) => b.weight.compareTo(a.weight));
+      final sortedKeywords = sortByWeight.map((e) => e.keyword).toList();
+
+      // 保存背景图片
+      String? backgroundImagePath;
+      if (state.backgroundImageFile != null) {
+        // 用户选择了新的背景图片
+        final savedFiles = await MediaUtil.saveImages(
+          imageFileList: [state.backgroundImageFile!],
+        );
+        if (savedFiles.isNotEmpty) {
+          backgroundImagePath = FileUtil.getRealPath(
+            'image',
+            savedFiles.values.first,
+          );
+        }
+      } else {
+        // 用户没有选择新的背景图片,保留原来的
+        backgroundImagePath = state.currentDiary.backgroundImagePath;
+      }
+
+      state.currentDiary
+        ..title = titleTextEditingController.text
+        ..content = content
+        ..type = state.type.value
+        ..contentText = contentText
+        ..audioName = state.audioNameList
+        ..imageName = imageNameMap.values.toList()
+        ..videoName = videoNameMap.values.toList()
+        ..tokenizer = tokenizer
+        ..keywords = sortedKeywords
+        ..imageColor = await getCoverColor()
+        ..aspect = await getCoverAspect()
+        ..backgroundImagePath = backgroundImagePath;
+
+      await IsarUtil.updateADiary(
+        oldDiary: state.originalDiary,
+        newDiary: state.currentDiary,
+      );
+      state.isNew
+          ? Get.back(result: state.currentDiary.categoryId ?? '')
+          : Get.back(result: 'changed');
+      if (!context.mounted) return;
+      toast.success(
+        message:
+            state.isNew
+                ? context.l10n.editSaveSuccess
+                : context.l10n.editChangeSuccess,
+      );
+    } catch (e, stackTrace) {
+      // 发生错误时也要停止转圈
+      debugPrint('保存失败: $e');
+      debugPrint('堆栈跟踪: $stackTrace');
+      if (!context.mounted) return;
+      toast.error(message: '保存失败: $e');
+    } finally {
+      // 无论成功还是失败，都要停止转圈
+      state.isSaving = false;
+      update(['modal']);
+    }
   }
 
   DateTime? oldTime;
@@ -698,35 +736,5 @@ class EditLogic extends GetxController {
 
   void focusContent() {
     if (!contentFocusNode.hasFocus) contentFocusNode.requestFocus();
-  }
-
-  // 选择自定义封面图片
-  Future<void> pickCustomCoverImage({required BuildContext context}) async {
-    final fileName = await CustomImageUtil.pickCoverImage();
-    if (fileName != null) {
-      // 如果之前有自定义封面，删除旧的
-      if (state.currentDiary.customCoverImage != null) {
-        await CustomImageUtil.deleteCoverImage(state.currentDiary.customCoverImage!);
-      }
-      state.currentDiary.customCoverImage = fileName;
-      update(['CoverImage']);
-    } else {
-       if (context.mounted) toast.info(message: context.l10n.cancelSelect);
-    }
-  }
-
-  // 选择自定义背景图片
-  Future<void> pickCustomBackgroundImage({required BuildContext context}) async {
-    final fileName = await CustomImageUtil.pickBackgroundImage();
-    if (fileName != null) {
-      // 如果之前有自定义背景，删除旧的
-      if (state.currentDiary.customBackgroundImage != null) {
-        await CustomImageUtil.deleteBackgroundImage(state.currentDiary.customBackgroundImage!);
-      }
-      state.currentDiary.customBackgroundImage = fileName;
-      update(['BackgroundImage']);
-    } else {
-      if (context.mounted) toast.info(message: context.l10n.cancelSelect);
-    }
   }
 }

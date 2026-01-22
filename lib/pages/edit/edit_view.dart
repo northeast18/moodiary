@@ -700,15 +700,15 @@ class EditPage extends StatelessWidget {
                 if (state.currentDiary.customCoverImage == null) {
                   return const Text('无封面图', style: TextStyle(color: Colors.grey));
                 }
-                return Container(
+                // 直接显示图片，不检查文件存在性，让Image组件自己处理错误
+                return Image.file(
+                  File(CustomImageUtil.getCoverPath(state.currentDiary.customCoverImage!)),
                   height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: AppBorderRadius.smallBorderRadius,
-                    image: DecorationImage(
-                      image: FileImage(File(CustomImageUtil.getCoverPath(state.currentDiary.customCoverImage!))),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Text('封面图文件不存在', style: TextStyle(color: Colors.red));
+                  },
                 );
               },
             ),
@@ -727,15 +727,15 @@ class EditPage extends StatelessWidget {
                 if (state.currentDiary.customBackgroundImage == null) {
                   return const Text('无背景图', style: TextStyle(color: Colors.grey));
                 }
-                return Container(
+                // 直接显示图片，不检查文件存在性，让Image组件自己处理错误
+                return Image.file(
+                  File(CustomImageUtil.getBackgroundPath(state.currentDiary.customBackgroundImage!)),
                   height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: AppBorderRadius.smallBorderRadius,
-                    image: DecorationImage(
-                      image: FileImage(File(CustomImageUtil.getBackgroundPath(state.currentDiary.customBackgroundImage!))),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Text('背景图文件不存在', style: TextStyle(color: Colors.red));
+                  },
                 );
               },
             ),

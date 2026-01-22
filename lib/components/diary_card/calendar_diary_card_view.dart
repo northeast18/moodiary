@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -20,38 +22,43 @@ class CalendarDiaryCardComponent extends StatelessWidget with BasicCardLogic {
   Widget build(BuildContext context) {
     Widget buildImage() {
       final List<Widget> images = [];
-      
+
       if (diary.customCoverImage != null) {
-        images.add(
-          SizedBox(
-            width: 100,
-            height: 100,
-            child: MoodiaryImage(
-              imagePath: CustomImageUtil.getCoverPath(diary.customCoverImage!),
-              borderRadius: AppBorderRadius.smallBorderRadius,
-              showBorder: true,
-              size: 100,
-            ),
-          ),
-        );
-      }
-      
-      for (int i = 0; i < diary.imageName.length; i++) {
-        images.add(
-          SizedBox(
-            width: 100,
-            height: 100,
-            child: MoodiaryImage(
-              imagePath: FileUtil.getRealPath(
-                'image',
-                diary.imageName[i],
+        final coverPath = CustomImageUtil.getCoverPath(diary.customCoverImage!);
+        // 检查自定义封面文件是否存在
+        if (File(coverPath).existsSync()) {
+          images.add(
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: MoodiaryImage(
+                imagePath: coverPath,
+                borderRadius: AppBorderRadius.smallBorderRadius,
+                showBorder: true,
+                size: 100,
               ),
-              borderRadius: AppBorderRadius.smallBorderRadius,
-              showBorder: true,
-              size: 100,
             ),
-          ),
-        );
+          );
+        }
+      }
+
+      for (int i = 0; i < diary.imageName.length; i++) {
+        final imagePath = FileUtil.getRealPath('image', diary.imageName[i]);
+        // 检查图片文件是否存在
+        if (File(imagePath).existsSync()) {
+          images.add(
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: MoodiaryImage(
+                imagePath: imagePath,
+                borderRadius: AppBorderRadius.smallBorderRadius,
+                showBorder: true,
+                size: 100,
+              ),
+            ),
+          );
+        }
       }
       
       if (images.isEmpty) {

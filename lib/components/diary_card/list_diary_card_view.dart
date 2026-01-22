@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -26,16 +28,24 @@ class ListDiaryCardComponent extends StatelessWidget with BasicCardLogic {
   Widget build(BuildContext context) {
     String getCoverImagePath() {
       if (diary.customCoverImage != null) {
-        return CustomImageUtil.getCoverPath(diary.customCoverImage!);
+        final coverPath = CustomImageUtil.getCoverPath(diary.customCoverImage!);
+        // 检查自定义封面文件是否存在
+        if (File(coverPath).existsSync()) {
+          return coverPath;
+        }
       }
       if (diary.imageName.isNotEmpty) {
-        return FileUtil.getRealPath('image', diary.imageName.first);
+        final imagePath = FileUtil.getRealPath('image', diary.imageName.first);
+        // 检查图片文件是否存在
+        if (File(imagePath).existsSync()) {
+          return imagePath;
+        }
       }
       return '';
     }
 
     bool hasCoverImage() {
-      return diary.customCoverImage != null || diary.imageName.isNotEmpty;
+      return getCoverImagePath().isNotEmpty;
     }
 
     Widget buildImage() {

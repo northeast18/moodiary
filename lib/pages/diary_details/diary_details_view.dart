@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -13,8 +11,6 @@ import 'package:moodiary/components/image_view/images_view.dart';
 import 'package:moodiary/components/mood_icon/mood_icon_view.dart';
 import 'package:moodiary/l10n/l10n.dart';
 import 'package:moodiary/persistence/pref.dart';
-import 'package:moodiary/utils/custom_image_util.dart';
-import 'package:moodiary/utils/file_util.dart';
 
 import 'diary_details_logic.dart';
 
@@ -134,60 +130,39 @@ class DiaryDetailsPage extends StatelessWidget {
                   brightness: context.theme.colorScheme.brightness,
                 )
                 : context.theme.colorScheme;
-        
         return Theme(
           data: context.theme.copyWith(colorScheme: customColorScheme),
           child: Builder(
             builder: (context) {
-              final scaffold = Scaffold(
+              return Scaffold(
                 backgroundColor: customColorScheme.surface,
                 body: CustomScrollView(
                   slivers: [
                     SliverAppBar(
-                      expandedHeight:
-                          state.diaryHeader
-                              ? (state.aspect != null
-                                  ? min(
-                                    size.width / state.aspect!,
-                                    size.height * 0.382,
-                                  )
-                                  : null)
-                              : null,
+                      expandedHeight: null,
                       title: Text(
                         state.diary.title,
                         style: context.textTheme.titleMedium,
                       ),
                       leading: const PageBackButton(),
                       centerTitle: false,
-                      flexibleSpace: FlexibleSpaceBar(
-                        collapseMode: CollapseMode.pin,
-                        background:
-                            state.diaryHeader && 
-                                (state.diary.customCoverImage != null || 
-                                 state.diary.imageName.isNotEmpty)
-                                    ? ImagesView(
-                                          imageName: state.diary.imageName,
-                                          customColorScheme: customColorScheme,
-                                          customCoverImage: state.diary.customCoverImage,
-                                        )
-                                    : null,
-                      ),
+                      flexibleSpace: null,
                       pinned: true,
                       actions: [
                         // IconButton(
                         //     onPressed: () {
                         //       showModalBottomSheet(
-                        //         context: context,
-                        //         useSafeArea: true,
-                        //         showDragHandle: true,
-                        //         builder: (context) {
-                        //           return Padding(
-                        //             padding: MediaQuery.viewInsetsOf(context),
-                        //             child: AskQuestionComponent(
-                        //               content: state.diary.contentText,
-                        //             ),
-                        //           );
-                        //         });
+                        //           context: context,
+                        //           useSafeArea: true,
+                        //           showDragHandle: true,
+                        //           builder: (context) {
+                        //             return Padding(
+                        //               padding: MediaQuery.viewInsetsOf(context),
+                        //               child: AskQuestionComponent(
+                        //                 content: state.diary.contentText,
+                        //               ),
+                        //             );
+                        //           });
                         //     },
                         //     icon: const Icon(Icons.chat)),
                         PopupMenuButton(
@@ -268,20 +243,6 @@ class DiaryDetailsPage extends StatelessWidget {
                     ),
                   ],
                 ),
-              );
-              return Stack(
-                children: [
-                  if (state.diary.customBackgroundImage != null)
-                    Positioned.fill(
-                      child: Image.file(
-                        File(CustomImageUtil.getBackgroundPath(state.diary.customBackgroundImage!)),
-                        fit: BoxFit.cover,
-                        color: const Color(0x40000000),
-                        colorBlendMode: BlendMode.darken,
-                      ),
-                    ),
-                  scaffold,
-                ],
               );
             },
           ),

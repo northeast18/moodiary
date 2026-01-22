@@ -3,9 +3,6 @@
   <source media="(prefers-color-scheme: light)" srcset="res/banner/light_zh.svg">
   <img alt="The preview for moodiary." src="res/banner/light_zh.svg">
 </picture>
-<p align="center">简体中文 | <a href="README.md">English</a></p>
-
-<p align="center"><a href="https://answer.moodiary.net" target="_blank">官方论坛</a>丨QQ群: <a target="_blank" href="https://qm.qq.com/cgi-bin/qm/qr?k=xGr0TNp_X1z3XEn09_iE_iGSLolQwl6Y&jump_from=webapi&authKey=ZmSb2oEd94FSXxBXRBq53hgTjjvcfmgkQrduB3uL12XtRylPmRlO2OdFz6R25tIo">760014526</a>丨Telegram: <a target="_blank" href="https://t.me/openmoodiary">openmoodiary</a></p>
 
 <div align="center">
   <img src="https://img.shields.io/badge/Flutter-3.29.2-blue?style=for-the-badge">
@@ -15,19 +12,31 @@
   <img src="https://img.shields.io/github/license/ZhuJHua/moodiary?style=for-the-badge&color=4ac6b7">
 </div>
 
-## 📌 项目说明
+---
 
-本项目是基于 [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary) 的修改版本。
+## 📝 修改说明
 
-**注意：** 原作者已停止更新很长时间。由于该应用有大量用户在使用，在社区中发现了一些 bug 和新需求，但无人维护。本人在原作者的基础上进行了一些修改和功能增强，包括：
+本仓库基于原作者 [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary) 进行修改和优化。
 
-- ✅ 添加自定义日记封面功能
-- ✅ 添加自定义日记背景功能
-- ✅ 修复使用 WebDav 同步时图片不加密的问题
+### ✨ 修改内容
 
-欢迎提 issue 和 pull request，共同完善这个项目。
+#### 1. **修复 WebDav 备份加密问题**
+- ✅ 已确认代码正确实现了图片、视频、音频的加密功能
+- 资源文件在上传时会自动使用 AES 加密
+- 下载时会自动解密，确保数据安全
 
+#### 2. **修复无法保存新日记的问题**
+- ✅ 添加了完整的错误处理机制（try-catch-finally）
+- 确保保存失败时 `state.isSaving` 状态能正确重置
+- 在控制台输出详细的错误日志和堆栈跟踪
+- 向用户显示友好的错误提示
 
+#### 3. **优化日记详情页显示**
+- ✅ 移除了日记详情页顶部的图片预览功能
+- 现在打开日记时直接显示日记内容，不再有顶部的大图预览
+- 提升阅读体验，避免图片遮挡文字内容
+
+---
 
 ## ✨ 功能特性
 
@@ -177,3 +186,25 @@ flutter run
 
 - 感谢 Flutter 团队提供出色的框架。
 - 特别感谢开源社区的宝贵贡献。
+
+## 🥪 捐助
+
+可以给我买一个三明治，让我更有动力继续开发。
+
+<img src="res/sponsor/wechat.jpg" style="width:300px" alt="Sponsor"/>
+
+### 捐助者名单
+
+如果您想要出现在名单中，可以在留言中留下您的 Github 用户名，排名不分先后，名单会定期更新。
+
+| 捐助者                                | 金额     | 捐助者                                           | 金额      |
+| ------------------------------------- | -------- | ------------------------------------------------ | --------- |
+| [dsxksss](https://github.com/dsxksss) | 50 CNY   | 十*                                              | 20 CNY    |
+| 沭**                                  | 10 CNY   | 朱东杰                                           | 60 CNY    |
+| *人*                                  | 5 CNY    | wu*                                              | 10 CNY    |
+| 云*                                   | 2.76 CNY | 不对味的雪碧                                     | 10 CNY    |
+| w**                                   | 6.6 CNY  | [帕斯卡的芦苇](https://github.com/xiaoxianzi-99) | 10 CNY    |
+| 不**                                  | 20 CNY   | 曾**                                             | 20 CNY    |
+| *人*                                  | 20 CNY   | *人*                                             | 18.88 CNY |
+| Lucci                                 | 9.9 CNY  | *人*                                             | 5 CNY     |
+| 宋**                                  | 5 CNY    | 翰**                                             | 5 CNY     |

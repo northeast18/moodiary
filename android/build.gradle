@@ -1,5 +1,7 @@
 allprojects {
     repositories {
+        // 使用腾讯云 Flutter 镜像源
+        maven { url "https://mirrors.cloud.tencent.com/flutter/download.flutter.io" }
         maven { url "https://maven.aliyun.com/repository/google" }
         maven { url "https://maven.aliyun.com/repository/public" }
         maven { url "https://maven.aliyun.com/repository/gradle-plugin" }
@@ -7,7 +9,6 @@ allprojects {
         maven { url 'https://developer.hihonor.com/repo/' }
         google()
         mavenCentral()
-        maven { url "https://storage.googleapis.com/download.flutter.io" }
         maven { url 'https://jitpack.io' }
     }
 }
