@@ -425,53 +425,84 @@ class EditLogic extends GetxController {
     update(['modal']);
 
     try {
+      debugPrint('=== 开始保存日记 ===');
+      debugPrint('是否新建日记: ${state.isNew}');
+
       // 根据文本中的实际内容移除不需要的资源
       final originContent =
           state.type == DiaryType.markdown
               ? markdownTextEditingController!.text.trim()
               : jsonEncode(quillController!.document.toDelta().toJson());
+      debugPrint('1. 获取原始内容完成');
+
       final needImage = await Kmp.findMatches(
         text: originContent,
         patterns: state.imagePathList,
       );
+      debugPrint('2. 图片匹配完成: ${needImage.length} 个');
+
       final needVideo = await Kmp.findMatches(
         text: originContent,
         patterns: state.videoPathList,
       );
+      debugPrint('3. 视频匹配完成: ${needVideo.length} 个');
+
       final needAudio = await Kmp.findMatches(
         text: originContent,
         patterns: state.audioNameList,
       );
+      debugPrint('4. 音频匹配完成: ${needAudio.length} 个');
+
       state.imageFileList.removeWhere((file) => !needImage.contains(file.path));
       state.videoFileList.removeWhere((file) => !needVideo.contains(file.path));
       state.audioNameList.removeWhere((name) => !needAudio.contains(name));
+      debugPrint('5. 清理不需要的资源完成');
+
       // 保存图片
+      debugPrint('6. 开始保存 ${state.imageFileList.length} 张图片');
       final imageNameMap = await MediaUtil.saveImages(
         imageFileList: state.imageFileList,
       );
+      debugPrint('7. 图片保存完成: ${imageNameMap.length} 个');
+
       // 保存视频
+      debugPrint('8. 开始保存 ${state.videoFileList.length} 个视频');
       final videoNameMap = await MediaUtil.saveVideo(
         videoFileList: state.videoFileList,
       );
+      debugPrint('9. 视频保存完成: ${videoNameMap.length} 个');
+
       //保存录音
+      debugPrint('10. 开始保存 ${state.audioNameList.length} 个音频');
       final audioNameMap = await MediaUtil.saveAudio(state.audioNameList);
+      debugPrint('11. 音频保存完成: ${audioNameMap.length} 个');
+
       final content = await Kmp.replaceWithKmp(
         text: originContent,
         replacements: {...imageNameMap, ...videoNameMap, ...audioNameMap},
       );
+      debugPrint('12. 内容替换完成');
+
       final contentText = _toPlainText().removeLineBreaks();
+      debugPrint('13. 提取纯文本完成，长度: ${contentText.length}');
+
       final tokenizer = await JiebaRs.cutAll(text: contentText);
+      debugPrint('14. 分词完成');
+
       final keywords = await JiebaRs.extractKeywordsTfidf(
         text: contentText,
         topK: BigInt.from(5),
         allowedPos: [],
       );
+      debugPrint('15. 关键词提取完成');
+
       final sortByWeight = keywords..sort((a, b) => b.weight.compareTo(a.weight));
       final sortedKeywords = sortByWeight.map((e) => e.keyword).toList();
 
       // 保存背景图片
       String? backgroundImagePath;
       if (state.backgroundImageFile != null) {
+        debugPrint('16. 开始保存背景图片');
         // 用户选择了新的背景图片
         final savedFiles = await MediaUtil.saveImages(
           imageFileList: [state.backgroundImageFile!],
@@ -482,11 +513,14 @@ class EditLogic extends GetxController {
             savedFiles.values.first,
           );
         }
+        debugPrint('17. 背景图片保存完成');
       } else {
         // 用户没有选择新的背景图片,保留原来的
         backgroundImagePath = state.currentDiary.backgroundImagePath;
+        debugPrint('17. 保留原背景图片');
       }
 
+      debugPrint('18. 开始设置日记属性');
       state.currentDiary
         ..title = titleTextEditingController.text
         ..content = content
@@ -500,11 +534,17 @@ class EditLogic extends GetxController {
         ..imageColor = await getCoverColor()
         ..aspect = await getCoverAspect()
         ..backgroundImagePath = backgroundImagePath;
+      debugPrint('19. 日记属性设置完成');
+      debugPrint('日记标题: ${state.currentDiary.title}');
+      debugPrint('日记ID: ${state.currentDiary.id}');
 
+      debugPrint('20. 开始保存到数据库');
       await IsarUtil.updateADiary(
         oldDiary: state.originalDiary,
         newDiary: state.currentDiary,
       );
+      debugPrint('21. 数据库保存完成');
+
       state.isNew
           ? Get.back(result: state.currentDiary.categoryId ?? '')
           : Get.back(result: 'changed');
@@ -515,12 +555,14 @@ class EditLogic extends GetxController {
                 ? context.l10n.editSaveSuccess
                 : context.l10n.editChangeSuccess,
       );
+      debugPrint('=== 保存日记成功 ===');
     } catch (e, stackTrace) {
       // 发生错误时也要停止转圈
-      debugPrint('保存失败: $e');
-      debugPrint('堆栈跟踪: $stackTrace');
+      debugPrint('❌ 保存失败: $e');
+      debugPrint('❌ 错误类型: ${e.runtimeType}');
+      debugPrint('❌ 堆栈跟踪:\n$stackTrace');
       if (!context.mounted) return;
-      toast.error(message: '保存失败: $e');
+      toast.error(message: '保存失败: ${e.toString()}');
     } finally {
       // 无论成功还是失败，都要停止转圈
       state.isSaving = false;
