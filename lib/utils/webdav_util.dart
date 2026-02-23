@@ -224,11 +224,16 @@ class WebDavUtil {
       if (serverLastModified == 'delete') {
         if (localLastModified != null) {
           syncingDiaries.add(diaryId);
-          await _deleteDiary(
-            localDiaries.firstWhere((element) => element.id == diaryId),
-          );
-          Bind.find<DiaryLogic>().refreshAll();
-          syncingDiaries.remove(diaryId);
+          try {
+            await _deleteDiary(
+              localDiaries.firstWhere((element) => element.id == diaryId),
+            );
+            Bind.find<DiaryLogic>().refreshAll();
+          } catch (e) {
+            logger.d('Failed to delete diary during sync: $e');
+          } finally {
+            syncingDiaries.remove(diaryId);
+          }
         }
         continue;
       }
@@ -240,7 +245,8 @@ class WebDavUtil {
           final updatedDiary = await _downloadDiary(diaryId); // 下载日记的实现
           await IsarUtil.insertADiary(updatedDiary); // 保存到本地的实现
         } catch (e) {
-          updatedSyncData.remove(diaryId);
+          logger.d('Failed to download diary: $diaryId, Error: $e');
+          // 下载失败，保留服务器记录，不删除
         }
         onDownload?.call();
 
@@ -257,8 +263,8 @@ class WebDavUtil {
           final newDiary = await _downloadDiary(diaryId);
           await IsarUtil.updateADiary(oldDiary: oldDiary, newDiary: newDiary);
         } catch (e) {
-          // 下载失败，移除sync.json中的记录
-          updatedSyncData.remove(diaryId);
+          logger.d('Failed to update diary: $diaryId, Error: $e');
+          // 下载失败，保留服务器记录，不删除
         }
         onDownload?.call();
         syncingDiaries.remove(diaryId);
@@ -277,15 +283,24 @@ class WebDavUtil {
           serverLastModified.compareTo(localLastModified) < 0) {
         // 服务器不存在该日记，或服务器版本较旧
         syncingDiaries.add(diary.id);
-        await _uploadDiary(diary); // 上传日记的实现
-        onUpload?.call();
-        updatedSyncData[diary.id] = localLastModified;
-        syncingDiaries.remove(diary.id);
+        try {
+          await _uploadDiary(diary); // 上传日记的实现
+          onUpload?.call();
+          updatedSyncData[diary.id] = localLastModified;
+        } catch (e) {
+          logger.d('Failed to upload diary during sync: $e');
+        } finally {
+          syncingDiaries.remove(diary.id);
+        }
       }
     }
 
     // 更新服务器的同步 JSON 文件
-    await updateServerSyncData(updatedSyncData);
+    try {
+      await updateServerSyncData(updatedSyncData);
+    } catch (e) {
+      logger.d('Failed to update server sync data: $e');
+    }
     onComplete?.call();
   }
 
@@ -390,6 +405,7 @@ class WebDavUtil {
   Future<void> _uploadDiary(Diary diary) async {
     Uint8List diaryData;
     String diaryPath;
+    Uint8List? encryptKey;
     // 检查有没有开启加密
     final shouldEncrypt = await _checkShouldEncrypt();
     if (shouldEncrypt) {
@@ -397,6 +413,7 @@ class WebDavUtil {
       final userKey = await SecureStorageUtil.getValue('userKey');
       // 生成加密密钥, 用日记 ID 和用户密钥生成
       final key = await AesUtil.deriveKey(salt: diary.id, userKey: userKey!);
+      encryptKey = key;
       // 加密日记内容
       diaryPath = '${WebDavOptions.diaryPath}/${diary.id}.bin';
       diaryData = await AesUtil.encrypt(
@@ -434,65 +451,66 @@ class WebDavUtil {
       diary.imageName,
       '${WebDavOptions.imagePath}/${diary.id}',
       'image',
+      encryptKey: encryptKey,
     );
     await _uploadFiles(
       diary.audioName,
       '${WebDavOptions.audioPath}/${diary.id}',
       'audio',
+      encryptKey: encryptKey,
     );
     await _uploadFiles(
       diary.videoName,
       '${WebDavOptions.videoPath}/${diary.id}',
       'video',
+      encryptKey: encryptKey,
     );
     await _uploadFiles(
       diary.videoName,
       '${WebDavOptions.videoPath}/${diary.id}',
       'thumbnail',
+      encryptKey: encryptKey,
     );
   }
 
   Future<void> _uploadFiles(
     List<String> fileNames,
     String resourcePath,
-    String type,
-  ) async {
+    String type, {
+    Uint8List? encryptKey,
+  }) async {
     await _client!.mkdirAll(resourcePath);
     final existingFiles = await _client!.readDir(resourcePath);
-    final shouldEncrypt = await _checkShouldEncrypt();
 
     for (var fileName in fileNames) {
       final filePath = FileUtil.getRealPath(type, fileName);
-      String finalFileName =
+      var serverFileName =
           type == 'thumbnail'
               ? 'thumbnail-${fileName.substring(6, 42)}.jpeg'
               : fileName;
-      
-      final uploadFileName = shouldEncrypt ? '$finalFileName.enc' : finalFileName;
-      
-      if (existingFiles.any((file) => file.name == uploadFileName)) {
-        logger.d('$type file already exists: $uploadFileName');
+      if (encryptKey != null) {
+        serverFileName += '.bin';
+      }
+      if (existingFiles.any((file) => file.name == serverFileName)) {
+        logger.d('$type file already exists: $serverFileName');
         continue;
       }
       try {
-        Uint8List fileBytes = await File(filePath).readAsBytes();
-        
-        if (shouldEncrypt) {
-          final userKey = await SecureStorageUtil.getValue('userKey');
-          final key = await AesUtil.deriveKey(salt: finalFileName, userKey: userKey!);
-          final base64Data = base64.encode(fileBytes);
-          final encryptedBytes = await AesUtil.encrypt(key: key, data: base64Data);
-          fileBytes = encryptedBytes;
+        var fileBytes = await File(filePath).readAsBytes();
+        if (encryptKey != null) {
+          fileBytes = await AesUtil.encryptBytes(
+            key: encryptKey,
+            dataBytes: fileBytes,
+          );
         }
-        
         _client!.setHeaders({
           'accept-charset': 'utf-8',
           'Content-Type': 'application/octet-stream',
         });
-        await _client!.write('$resourcePath/$uploadFileName', fileBytes);
-        logger.d('$type file uploaded: $uploadFileName');
+        await _client!.write('$resourcePath/$serverFileName', fileBytes);
+        logger.d('$type file uploaded: $serverFileName');
       } catch (e) {
-        logger.d('Failed to upload $type file: $uploadFileName, Error: $e');
+        logger.d('Failed to upload $type file: $serverFileName, Error: $e');
         rethrow;
       }
     }
@@ -503,17 +521,18 @@ class WebDavUtil {
     String resourcePath,
     String type,
   ) async {
-    final shouldEncrypt = await _checkShouldEncrypt();
-    
     for (final fileName in fileNames) {
-      final baseFileName = fileName;
-      final deleteFileName = shouldEncrypt ? '$baseFileName.enc' : baseFileName;
-      
       try {
-        await _client!.remove('$resourcePath/$deleteFileName');
-        logger.d('$type file deleted: $deleteFileName');
+        await _client!.remove('$resourcePath/$fileName');
+        logger.d('$type file deleted: $fileName');
       } catch (e) {
-        logger.d('Failed to delete $type file: $deleteFileName, Error: $e');
+        logger.d('Failed to delete $type file: $fileName, Error: $e');
+      }
+      try {
+        await _client!.remove('$resourcePath/$fileName.bin');
+        logger.d('$type encrypted file deleted: $fileName.bin');
+      } catch (e) {
+        logger.d('Failed to delete $type encrypted file: $fileName.bin, Error: $e');
       }
     }
   }
@@ -523,10 +542,14 @@ class WebDavUtil {
     final normalDiaryPath = '${WebDavOptions.diaryPath}/$diaryId.json';
     final encryptedDiaryPath = '${WebDavOptions.diaryPath}/$diaryId.bin';
     late Diary diary;
+    Uint8List? decryptKey;
     try {
       // 先尝试普通 JSON 格式
       try {
         final diaryData = await _client!.read(normalDiaryPath);
+        if (diaryData.isEmpty) {
+          throw Exception('Empty response from server');
+        }
         diary = await flutter.compute(
           Diary.fromJson,
           jsonDecode(utf8.decode(diaryData)) as Map<String, dynamic>,
@@ -537,17 +560,36 @@ class WebDavUtil {
         // 再尝试二进制格式
         try {
           final encryptedDiaryData = await _client!.read(encryptedDiaryPath);
-          // 解密日记内容
+          if (encryptedDiaryData.isEmpty) {
+            throw Exception('Empty response from server');
+          }
+
+          // 先检查是否需要加密
           final userKey = await SecureStorageUtil.getValue('userKey');
           final shouldEncrypt = await _checkShouldEncrypt();
-          if (!shouldEncrypt) {
-            throw Exception('User key not found or encryption not enabled');
+
+          String decryptedData;
+          if (shouldEncrypt && userKey != null) {
+            // 需要解密
+            final key = await AesUtil.deriveKey(salt: diaryId, userKey: userKey);
+            decryptKey = key;
+            try {
+              decryptedData = await AesUtil.decrypt(
+                key: key,
+                encryptedData: Uint8List.fromList(encryptedDiaryData),
+              );
+            } catch (aesError) {
+              if (aesError.toString().contains('flutter_rust_bridge has not been initialized')) {
+                throw Exception('Rust library not available - cannot decrypt encrypted diary.');
+              }
+              rethrow;
+            }
+          } else {
+            // 不需要加密，直接读取为 UTF-8 JSON（兼容未加密的 .bin 文件）
+            decryptedData = utf8.decode(encryptedDiaryData);
+            logger.d('Reading unencrypted binary file as JSON');
           }
-          final key = await AesUtil.deriveKey(salt: diaryId, userKey: userKey!);
-          final decryptedData = await AesUtil.decrypt(
-            key: key,
-            encryptedData: Uint8List.fromList(encryptedDiaryData),
-          );
+
           diary = await flutter.compute(
             Diary.fromJson,
             jsonDecode(decryptedData) as Map<String, dynamic>,
@@ -582,22 +624,26 @@ class WebDavUtil {
       diary.imageName,
       '${WebDavOptions.imagePath}/$diaryId',
       'image',
+      decryptKey: decryptKey,
     );
     diary.audioName = await _downloadFiles(
       diary.audioName,
       '${WebDavOptions.audioPath}/$diaryId',
       'audio',
+      decryptKey: decryptKey,
     );
     diary.videoName = await _downloadFiles(
       diary.videoName,
       '${WebDavOptions.videoPath}/$diaryId',
       'video',
+      decryptKey: decryptKey,
     );
     // 下载视频缩略图
     await _downloadFiles(
       diary.videoName,
       '${WebDavOptions.videoPath}/$diaryId',
       'thumbnail',
+      decryptKey: decryptKey,
     );
     return diary;
   }
@@ -605,35 +651,30 @@ class WebDavUtil {
   Future<List<String>> _downloadFiles(
     List<String> fileNames,
     String resourcePath,
-    String type,
-  ) async {
+    String type, {
+    Uint8List? decryptKey,
+  }) async {
     final localFileNames = <String>[];
-    final shouldEncrypt = await _checkShouldEncrypt();
 
     for (final fileName in fileNames) {
-      final baseFileName =
+      var serverFileName =
           type == 'thumbnail'
               ? 'thumbnail-${fileName.substring(6, 42)}.jpeg'
               : fileName;
-      final serverFilePath = shouldEncrypt 
-          ? '$resourcePath/$baseFileName.enc'
-          : '$resourcePath/$baseFileName';
+      if (decryptKey != null) {
+        serverFileName += '.bin';
+      }
+      final serverFilePath = '$resourcePath/$serverFileName';
       final localFilePath = FileUtil.getRealPath(type, fileName);
 
       try {
-        List<int> rawData = await _client!.read(serverFilePath);
-        Uint8List fileBytes = Uint8List.fromList(rawData);
-
-        if (shouldEncrypt) {
-          final userKey = await SecureStorageUtil.getValue('userKey');
-          final key = await AesUtil.deriveKey(salt: baseFileName, userKey: userKey!);
-          final decryptedString = await AesUtil.decrypt(
-            key: key,
-            encryptedData: fileBytes,
+        var fileBytes = await _client!.read(serverFilePath);
+        if (decryptKey != null) {
+          fileBytes = await AesUtil.decryptBytes(
+            key: decryptKey,
+            encryptedData: Uint8List.fromList(fileBytes),
           );
-          fileBytes = base64.decode(decryptedString);
         }
-        
         final file = File(localFilePath);
         await file.writeAsBytes(fileBytes);
         localFileNames.add(fileName);

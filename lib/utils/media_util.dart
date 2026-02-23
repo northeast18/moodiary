@@ -77,15 +77,22 @@ class MediaUtil {
     final imageNameMap = <String, String>{};
     await Future.wait(
       imageFileList.map((imageFile) async {
-        if (basename(imageFile.path).startsWith('image-')) {
-          imageNameMap[imageFile.path] = basename(imageFile.path);
-          return;
+        try {
+          if (basename(imageFile.path).startsWith('image-')) {
+            imageNameMap[imageFile.path] = basename(imageFile.path);
+            return;
+          }
+          final imageFormat = ImageFormat.getImageFormat(imageFile.path);
+          final imageName = 'image-${const Uuid().v7()}${imageFormat.extension}';
+          final outputPath = FileUtil.getRealPath('image', imageName);
+          await compressAndSaveImage(imageFile, outputPath, imageFormat)
+              .timeout(const Duration(seconds: 10));
+          imageNameMap[imageFile.path] = imageName;
+        } catch (e) {
+          logger.e('Failed to save image: ${imageFile.path}', error: e);
+          // If save fails, we still want to continue with other images if possible
+          // but here we might just rethrow if it's critical
         }
-        final imageFormat = ImageFormat.getImageFormat(imageFile.path);
-        final imageName = 'image-${const Uuid().v7()}${imageFormat.extension}';
-        final outputPath = FileUtil.getRealPath('image', imageName);
-        await compressAndSaveImage(imageFile, outputPath, imageFormat);
-        imageNameMap[imageFile.path] = imageName;
       }),
     );
 
@@ -185,7 +192,13 @@ class MediaUtil {
           info.image.width.toDouble(),
           info.image.height.toDouble(),
         );
-        completer.complete(size);
+        if (!completer.isCompleted) {
+          completer.complete(size);
+        }
+      }, onError: (exception, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(exception, stackTrace);
+        }
       }),
     );
     return completer.future;
@@ -244,8 +257,8 @@ class MediaUtil {
 
   //异步获取图片颜色
   static Future<int> getColorScheme(ImageProvider imageProvider) async {
-    final color =
-        (await ColorScheme.fromImageProvider(provider: imageProvider)).primary;
+    final colorScheme = await ColorScheme.fromImageProvider(provider: imageProvider);
+    final color = colorScheme.primary;
     return ((color.a * 255).toInt() << 24) |
         ((color.r * 255).toInt() << 16) |
         ((color.g * 255).toInt() << 8) |

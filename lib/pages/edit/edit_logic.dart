@@ -27,6 +27,7 @@ import 'package:moodiary/router/app_routes.dart';
 import 'package:moodiary/src/rust/api/jieba.dart';
 import 'package:moodiary/src/rust/api/kmp.dart';
 import 'package:moodiary/utils/file_util.dart';
+import 'package:moodiary/utils/log_util.dart';
 import 'package:moodiary/utils/markdown_util.dart';
 import 'package:moodiary/utils/media_util.dart';
 import 'package:moodiary/utils/notice_util.dart';
@@ -169,26 +170,68 @@ class EditLogic extends GetxController {
       switch (state.type) {
         case DiaryType.text:
         case DiaryType.richText:
+          // 添加异常处理，防止 Rust 库未初始化时崩溃
+          String replacedContent;
+          try {
+            replacedContent = await Kmp.replaceWithKmp(
+              text: state.originalDiary!.content,
+              replacements: replaceMap,
+            );
+          } catch (_) {
+            // 回退：使用简单的字符串替换
+            replacedContent = state.originalDiary!.content;
+            replaceMap.forEach((key, value) {
+              replacedContent = replacedContent.replaceAll(key, value);
+            });
+          }
           quillController = QuillController(
             document: Document.fromJson(
-              jsonDecode(
-                await Kmp.replaceWithKmp(
-                  text: state.originalDiary!.content,
-                  replacements: replaceMap,
-                ),
-              ),
+              jsonDecode(replacedContent),
             ),
             selection: const TextSelection.collapsed(offset: 0),
           );
         case DiaryType.markdown:
-          markdownTextEditingController = TextEditingController(
-            text: await Kmp.replaceWithKmp(
+          String replacedContent;
+          try {
+            replacedContent = await Kmp.replaceWithKmp(
               text: state.originalDiary!.content,
               replacements: replaceMap,
-            ),
+            );
+          } catch (_) {
+            // 回退：使用简单的字符串替换
+            replacedContent = state.originalDiary!.content;
+            replaceMap.forEach((key, value) {
+              replacedContent = replacedContent.replaceAll(key, value);
+            });
+          }
+          markdownTextEditingController = TextEditingController(
+            text: replacedContent,
           );
       }
       state.totalCount.value = _toPlainText().length;
+
+      // Check for custom cover
+      if (state.imageFileList.isNotEmpty) {
+        final originContent =
+            state.type == DiaryType.markdown
+                ? markdownTextEditingController!.text.trim()
+                : jsonEncode(quillController!.document.toDelta().toJson());
+        // 添加异常处理，防止 Rust 库未初始化时崩溃
+        List<String> needImage;
+        try {
+          needImage = await Kmp.findMatches(
+            text: originContent,
+            patterns: state.imagePathList,
+          );
+        } catch (_) {
+          // 回退：假设所有图片都需要
+          needImage = state.imagePathList;
+        }
+        final firstPath = state.imageFileList.first.path;
+        if (!needImage.contains(firstPath)) {
+          state.customCoverPath = firstPath;
+        }
+      }
     }
     state.isInit = true;
     update(['body']);
@@ -269,6 +312,38 @@ class EditLogic extends GetxController {
     update(['Image']);
   }
 
+  // 选择自定义封面
+  Future<void> pickCustomCover(BuildContext context) async {
+    final XFile? photo = await MediaUtil.pickPhoto(ImageSource.gallery);
+    if (photo != null && context.mounted) {
+      state.customCoverPath = photo.path;
+      if (!state.imageFileList.any((e) => e.path == photo.path)) {
+        state.imageFileList.insert(0, photo);
+      } else {
+        final coverFile = state.imageFileList.firstWhere(
+          (e) => e.path == photo.path,
+        );
+        state.imageFileList.remove(coverFile);
+        state.imageFileList.insert(0, coverFile);
+      }
+      update(['CoverImage']);
+    }
+  }
+
+  // 移除自定义封面
+  void removeCustomCover() {
+    if (state.customCoverPath != null) {
+      final coverFile = state.imageFileList.firstWhereOrNull(
+        (e) => e.path == state.customCoverPath,
+      );
+      if (coverFile != null) {
+        state.imageFileList.remove(coverFile);
+      }
+      state.customCoverPath = null;
+      update(['CoverImage']);
+    }
+  }
+
   // 多张图片
 
   Future<void> pickMultiPhoto(BuildContext context) async {
@@ -309,25 +384,6 @@ class EditLogic extends GetxController {
     addNewImage(XFile.fromData(dataList, path: path)..saveTo(path));
   }
 
-  //选择背景图片
-  Future<void> pickBackgroundImage(BuildContext context) async {
-    final XFile? photo = await MediaUtil.pickPhoto(ImageSource.gallery);
-    if (photo != null && context.mounted) {
-      Navigator.pop(context);
-      state.backgroundImageFile = photo;
-      update(['edit-save']);
-    } else {
-      if (!context.mounted) return;
-      toast.info(message: context.l10n.cancelSelect);
-    }
-  }
-
-  //清除背景图片
-  void clearBackgroundImage() {
-    state.backgroundImageFile = null;
-    update(['edit-save']);
-  }
-
   //网络图片
   Future<void> networkImage(BuildContext context) async {
     toast.info(message: context.l10n.imageFetching);
@@ -366,16 +422,6 @@ class EditLogic extends GetxController {
     }
   }
 
-  //预览图片
-  // void toPhotoView(List<String> imagePath, int index) {
-  //   Get.toNamed(AppRoutes.photoPage, arguments: [imagePath, index]);
-  // }
-
-  //预览视频
-  // void toVideoView(List<String> videoPath, int index) {
-  //   Get.toNamed(AppRoutes.videoPage, arguments: [videoPath, index]);
-  // }
-
   //删除图片
   void deleteImage({required String path}) async {
     // 移除这个图片
@@ -399,9 +445,14 @@ class EditLogic extends GetxController {
   //获取封面颜色
   Future<int?> getCoverColor() async {
     if (state.imageFileList.isNotEmpty) {
-      return await MediaUtil.getColorScheme(
-        FileImage(File(state.imageFileList.first.path)),
-      );
+      try {
+        return await MediaUtil.getColorScheme(
+          FileImage(File(state.imageFileList.first.path)),
+        ).timeout(const Duration(seconds: 3));
+      } catch (e) {
+        logger.e('Failed to get cover color', error: e);
+        return null;
+      }
     } else {
       return null;
     }
@@ -411,9 +462,14 @@ class EditLogic extends GetxController {
   Future<double?> getCoverAspect() async {
     //如果有封面就获取
     if (state.imageFileList.isNotEmpty) {
-      return await MediaUtil.getImageAspectRatio(
-        FileImage(File(state.imageFileList.first.path)),
-      );
+      try {
+        return await MediaUtil.getImageAspectRatio(
+          FileImage(File(state.imageFileList.first.path)),
+        ).timeout(const Duration(seconds: 3));
+      } catch (e) {
+        logger.e('Failed to get cover aspect', error: e);
+        return null;
+      }
     } else {
       return null;
     }
@@ -421,106 +477,123 @@ class EditLogic extends GetxController {
 
   //保存日记
   Future<void> saveDiary({required BuildContext context}) async {
-    state.isSaving = true;
-    update(['modal']);
-
     try {
-      debugPrint('=== 开始保存日记 ===');
-      debugPrint('是否新建日记: ${state.isNew}');
-
+      state.isSaving = true;
+      update(['modal']);
       // 根据文本中的实际内容移除不需要的资源
       final originContent =
           state.type == DiaryType.markdown
               ? markdownTextEditingController!.text.trim()
               : jsonEncode(quillController!.document.toDelta().toJson());
-      debugPrint('1. 获取原始内容完成');
 
-      final needImage = await Kmp.findMatches(
-        text: originContent,
-        patterns: state.imagePathList,
+      // 添加超时保护，防止 Rust 侧卡死
+      List<String> needImage = [];
+      List<String> needVideo = [];
+      List<String> needAudio = [];
+      try {
+        needImage = await Kmp.findMatches(
+          text: originContent,
+          patterns: state.imagePathList,
+        ).timeout(const Duration(seconds: 5), onTimeout: () => state.imagePathList);
+      } catch (_) {
+        needImage = state.imagePathList; // 回退：保留所有图片
+      }
+      try {
+        needVideo = await Kmp.findMatches(
+          text: originContent,
+          patterns: state.videoPathList,
+        ).timeout(const Duration(seconds: 5), onTimeout: () => state.videoPathList);
+      } catch (_) {
+        needVideo = state.videoPathList; // 回退：保留所有视频
+      }
+      try {
+        needAudio = await Kmp.findMatches(
+          text: originContent,
+          patterns: state.audioNameList,
+        ).timeout(const Duration(seconds: 5), onTimeout: () => state.audioNameList);
+      } catch (_) {
+        needAudio = state.audioNameList; // 回退：保留所有音频
+      }
+
+      // 移除不需要的文件，但保留自定义封面
+      state.imageFileList.removeWhere(
+        (file) =>
+            !needImage.contains(file.path) &&
+            file.path != state.customCoverPath,
       );
-      debugPrint('2. 图片匹配完成: ${needImage.length} 个');
-
-      final needVideo = await Kmp.findMatches(
-        text: originContent,
-        patterns: state.videoPathList,
-      );
-      debugPrint('3. 视频匹配完成: ${needVideo.length} 个');
-
-      final needAudio = await Kmp.findMatches(
-        text: originContent,
-        patterns: state.audioNameList,
-      );
-      debugPrint('4. 音频匹配完成: ${needAudio.length} 个');
-
-      state.imageFileList.removeWhere((file) => !needImage.contains(file.path));
       state.videoFileList.removeWhere((file) => !needVideo.contains(file.path));
       state.audioNameList.removeWhere((name) => !needAudio.contains(name));
-      debugPrint('5. 清理不需要的资源完成');
+
+      // 确保自定义封面在第一位
+      if (state.customCoverPath != null) {
+        final coverFile = state.imageFileList.firstWhereOrNull(
+          (f) => f.path == state.customCoverPath,
+        );
+        if (coverFile != null) {
+          state.imageFileList.remove(coverFile);
+          state.imageFileList.insert(0, coverFile);
+        }
+      }
 
       // 保存图片
-      debugPrint('6. 开始保存 ${state.imageFileList.length} 张图片');
       final imageNameMap = await MediaUtil.saveImages(
         imageFileList: state.imageFileList,
       );
-      debugPrint('7. 图片保存完成: ${imageNameMap.length} 个');
-
       // 保存视频
-      debugPrint('8. 开始保存 ${state.videoFileList.length} 个视频');
       final videoNameMap = await MediaUtil.saveVideo(
         videoFileList: state.videoFileList,
       );
-      debugPrint('9. 视频保存完成: ${videoNameMap.length} 个');
-
       //保存录音
-      debugPrint('10. 开始保存 ${state.audioNameList.length} 个音频');
       final audioNameMap = await MediaUtil.saveAudio(state.audioNameList);
-      debugPrint('11. 音频保存完成: ${audioNameMap.length} 个');
 
-      final content = await Kmp.replaceWithKmp(
-        text: originContent,
-        replacements: {...imageNameMap, ...videoNameMap, ...audioNameMap},
-      );
-      debugPrint('12. 内容替换完成');
-
-      final contentText = _toPlainText().removeLineBreaks();
-      debugPrint('13. 提取纯文本完成，长度: ${contentText.length}');
-
-      final tokenizer = await JiebaRs.cutAll(text: contentText);
-      debugPrint('14. 分词完成');
-
-      final keywords = await JiebaRs.extractKeywordsTfidf(
-        text: contentText,
-        topK: BigInt.from(5),
-        allowedPos: [],
-      );
-      debugPrint('15. 关键词提取完成');
-
-      final sortByWeight = keywords..sort((a, b) => b.weight.compareTo(a.weight));
-      final sortedKeywords = sortByWeight.map((e) => e.keyword).toList();
-
-      // 保存背景图片
-      String? backgroundImagePath;
-      if (state.backgroundImageFile != null) {
-        debugPrint('16. 开始保存背景图片');
-        // 用户选择了新的背景图片
-        final savedFiles = await MediaUtil.saveImages(
-          imageFileList: [state.backgroundImageFile!],
-        );
-        if (savedFiles.isNotEmpty) {
-          backgroundImagePath = FileUtil.getRealPath(
-            'image',
-            savedFiles.values.first,
-          );
+      // 添加超时保护，防止 Rust 侧卡死
+      final content = await (() async {
+        try {
+          return await Kmp.replaceWithKmp(
+            text: originContent,
+            replacements: {...imageNameMap, ...videoNameMap, ...audioNameMap},
+          ).timeout(const Duration(seconds: 10));
+        } catch (_) {
+          // 回退：使用简单的字符串替换
+          var result = originContent;
+          imageNameMap.forEach((key, value) {
+            result = result.replaceAll(key, value);
+          });
+          videoNameMap.forEach((key, value) {
+            result = result.replaceAll(key, value);
+          });
+          audioNameMap.forEach((key, value) {
+            result = result.replaceAll(key, value);
+          });
+          return result;
         }
-        debugPrint('17. 背景图片保存完成');
-      } else {
-        // 用户没有选择新的背景图片,保留原来的
-        backgroundImagePath = state.currentDiary.backgroundImagePath;
-        debugPrint('17. 保留原背景图片');
+      }());
+      final contentText = _toPlainText().removeLineBreaks();
+
+      // 添加超时保护和异常捕获，防止 Rust 侧卡死或未初始化
+      List<String> tokenizer = [];
+      List<String> sortedKeywords = [];
+      try {
+        tokenizer = await JiebaRs.cutAll(text: contentText).timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => [],
+        );
+      } catch (_) {
+        tokenizer = []; // Rust 库不可用时使用空列表
+      }
+      try {
+        final keywordsResult = await JiebaRs.extractKeywordsTfidf(
+          text: contentText,
+          topK: BigInt.from(5),
+          allowedPos: [],
+        ).timeout(const Duration(seconds: 5), onTimeout: () => []);
+        final sortByWeight =
+            keywordsResult..sort((a, b) => b.weight.compareTo(a.weight));
+        sortedKeywords = sortByWeight.map((e) => e.keyword).toList();
+      } catch (_) {
+        sortedKeywords = []; // Rust 库不可用时使用空列表
       }
 
-      debugPrint('18. 开始设置日记属性');
       state.currentDiary
         ..title = titleTextEditingController.text
         ..content = content
@@ -532,18 +605,14 @@ class EditLogic extends GetxController {
         ..tokenizer = tokenizer
         ..keywords = sortedKeywords
         ..imageColor = await getCoverColor()
-        ..aspect = await getCoverAspect()
-        ..backgroundImagePath = backgroundImagePath;
-      debugPrint('19. 日记属性设置完成');
-      debugPrint('日记标题: ${state.currentDiary.title}');
-      debugPrint('日记ID: ${state.currentDiary.id}');
+        ..aspect = await getCoverAspect();
 
-      debugPrint('20. 开始保存到数据库');
       await IsarUtil.updateADiary(
         oldDiary: state.originalDiary,
         newDiary: state.currentDiary,
       );
-      debugPrint('21. 数据库保存完成');
+      state.isSaving = false;
+      update(['modal']);
 
       state.isNew
           ? Get.back(result: state.currentDiary.categoryId ?? '')
@@ -555,18 +624,13 @@ class EditLogic extends GetxController {
                 ? context.l10n.editSaveSuccess
                 : context.l10n.editChangeSuccess,
       );
-      debugPrint('=== 保存日记成功 ===');
-    } catch (e, stackTrace) {
-      // 发生错误时也要停止转圈
-      debugPrint('❌ 保存失败: $e');
-      debugPrint('❌ 错误类型: ${e.runtimeType}');
-      debugPrint('❌ 堆栈跟踪:\n$stackTrace');
-      if (!context.mounted) return;
-      toast.error(message: '保存失败: ${e.toString()}');
-    } finally {
-      // 无论成功还是失败，都要停止转圈
+    } catch (e, stack) {
+      logger.e('Failed to save diary', error: e, stackTrace: stack);
       state.isSaving = false;
       update(['modal']);
+      if (context.mounted) {
+        toast.error(message: '保存失败: $e');
+      }
     }
   }
 
