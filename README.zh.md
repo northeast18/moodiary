@@ -3,19 +3,17 @@
   <source media="(prefers-color-scheme: light)" srcset="res/banner/light_zh.svg">
   <img alt="The preview for moodiary." src="res/banner/light_zh.svg">
 </picture>
-<p align="center">简体中文 | <a href="README.md">English</a></p>
-
-<p align="center"><a href="https://answer.moodiary.net" target="_blank">官方论坛</a>丨QQ群: <a target="_blank" href="https://qm.qq.com/cgi-bin/qm/qr?k=xGr0TNp_X1z3XEn09_iE_iGSLolQwl6Y&jump_from=webapi&authKey=ZmSb2oEd94FSXxBXRBq53hgTjjvcfmgkQrduB3uL12XtRylPmRlO2OdFz6R25tIo">760014526</a>丨Telegram: <a target="_blank" href="https://t.me/openmoodiary">openmoodiary</a></p>
+<p align="center">简体中文</p>
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Flutter-3.29.2-blue?style=for-the-badge">
-  <img src="https://img.shields.io/github/repo-size/ZhuJHua/moodiary?style=for-the-badge&color=ff7070">
-  <img src="https://img.shields.io/github/stars/ZhuJHua/moodiary?style=for-the-badge&color=965f8a">
-  <img src="https://img.shields.io/github/v/release/ZhuJHua/moodiary?style=for-the-badge&color=4f5e7f">
-  <img src="https://img.shields.io/github/license/ZhuJHua/moodiary?style=for-the-badge&color=4ac6b7">
+  <img src="https://img.shields.io/badge/Flutter-3.41.0-blue?style=for-the-badge">
+  <img src="https://img.shields.io/github/repo-size/northeast18/moodiary?style=for-the-badge&color=ff7070">
+  <img src="https://img.shields.io/github/stars/northeast18/moodiary?style=for-the-badge&color=965f8a">
+  <img src="https://img.shields.io/github/v/release/northeast18/moodiary?style=for-the-badge&color=4f5e7f">
+  <img src="https://img.shields.io/github/license/northeast18/moodiary?style=for-the-badge&color=4ac6b7">
 </div>
 
-
+> 本项目基于 [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary) 进行维护和修复。原作者项目已停止更新，本 fork 版本主要修复了使用中发现的 bug，并实现了一些新功能。
 
 ## ✨ 功能特性
 
@@ -35,11 +33,26 @@
 
 （注：跨平台能力由 Flutter 提供，带 * 号的平台可能需要更多测试）
 
+## 🛠️ 本版本修复与新增内容
+
+### Bug 修复
+
+- **修复 WebDAV 同步加密上传功能**：修复了 Rust 库初始化问题，使得加密同步功能可以正常工作
+- **修复日记数据兼容性**：修复了旧版日记数据缺少 `show` 字段导致的加载失败问题
+- **修复 Rust 库打包问题**：修复了 Rust 动态库未正确打包到 APK 的问题
+
+### 依赖更新
+
+- **flutter_rust_bridge**: 2.9.0 → 2.11.1
+- **Flutter SDK**: 更新至 3.41.0
+
 ## 🔧 主要技术栈
 
 - [Flutter](https://github.com/flutter/flutter)（跨平台 UI 框架）
 - [Isar](https://github.com/isar/isar)（高性能本地数据库）
 - [GetX](https://github.com/jonataslaw/getx)（状态管理框架）
+- [flutter_rust_bridge](https://github.com/Deskhun/flutter_rust_bridge)（Rust FFI 桥接）
+- [Rust](https://www.rust-lang.org/)（加密等高性能本地处理）
 
 ## 📸 应用截图
 
@@ -63,22 +76,6 @@
 
 ## 🚀 安装指南
 
-### 第三方 SDK
-
-某些能力需要自行申请第三方 SDK，下列服务商均提供免费的版本，获取到的 Key 在实验室中配置。
-
-#### 天气服务
-
-- [和风天气](https://dev.qweather.com/docs/api/)
-
-#### 地图服务
-
-- [天地图](http://lbs.tianditu.gov.cn/server/MapService.html)
-
-#### 智能助手
-
-- [腾讯混元大模型](https://cloud.tencent.com/document/product/1729/97731)
-
 ### 直接安装
 
 通过下载 Release 中已编译好的安装包来使用，如果没有你所需要的平台，请使用手动编译。
@@ -87,9 +84,7 @@
 
 #### 环境要求
 
-> 我总是会使用最新的 Flutter 版本（如果可能的话），使用新版本可以带来更多的功能和更好的性能提升，永远不要使用老版本除非你希望代码变成一坨 💩
-
-- Flutter SDK (>= 3.29.0 Stable)（建议使用 fvm 来管理 flutter 版本）
+- Flutter SDK (>= 3.41.0 Stable)
 - Dart (>= 3.7.0)
 - Rust 工具链（Nightly）
 - Clang/LLVM
@@ -97,12 +92,10 @@
 
 #### 安装步骤
 
-> 注意：出于安全考虑，我并没有在代码库中包含我的签名，当您需要手动打包时，需要自己修改对应平台的配置文件，例如安卓平台的 build.gradle，修改包名后打包，感谢您的理解
-
 1. **克隆仓库**：
 
 ```bash
-git clone https://github.com/ZhuJHua/moodiary.git
+git clone https://github.com/northeast18/moodiary.git
 cd moodiary
 ```
 
@@ -120,7 +113,7 @@ flutter run
 
 4. **打包发布**：
 
-- Android: `flutter build apk`
+- Android: `flutter build apk --split-per-abi`
 - iOS: `flutter build ipa`
 - Windows: `flutter build windows`
 - MacOS: `flutter build macos`
@@ -133,11 +126,11 @@ flutter run
 
 如今，越来越多的行业产品开始融入 AI 技术，这无疑极大地提升了我们的使用体验。然而，对于日记应用来说，将数据交给大型模型处理并不可接受，因为无法确定这些数据是否会被用于训练。因此，更好的方法是采用本地模型。虽然由于体积限制，本地模型的能力可能不如大型模型强大，但在一定程度上仍能为我们提供必要的帮助。
 
-目前，我在源码中集成了以下任务：
+目前，源码中集成了以下任务：
 
 #### 基于 Bert 预训练模型的 SQuAD 任务
 
-我采用了 MobileBert 来处理 SQuAD 任务，这是一个简单的机器阅读理解任务。你可以向它提出问题，它会返回你需要的答案。模型文件采用 TensorFlow Lite 所需的 `.tflite` 格式，所以你可以添加自己的模型文件到 `assets/tflite` 目录下。
+采用了 MobileBert 来处理 SQuAD 任务，这是一个简单的机器阅读理解任务。你可以向它提出问题，它会返回你需要的答案。模型文件采用 TensorFlow Lite 所需的 `.tflite` 格式，所以你可以添加自己的模型文件到 `assets/tflite` 目录下。
 
 感谢以下开源项目：
 
@@ -163,27 +156,6 @@ flutter run
 
 ## 💖 鸣谢
 
-- 感谢 Flutter 团队提供出色的框架。
-- 特别感谢开源社区的宝贵贡献。
-
-## 🥪 捐助
-
-可以给我买一个三明治，让我更有动力继续开发。
-
-<img src="res/sponsor/wechat.jpg" style="width:300px" alt="Sponsor"/>
-
-### 捐助者名单
-
-如果您想要出现在名单中，可以在留言中留下您的 Github 用户名，排名不分先后，名单会定期更新。
-
-| 捐助者                                | 金额     | 捐助者                                           | 金额      |
-| ------------------------------------- | -------- | ------------------------------------------------ | --------- |
-| [dsxksss](https://github.com/dsxksss) | 50 CNY   | 十*                                              | 20 CNY    |
-| 沭**                                  | 10 CNY   | 朱东杰                                           | 60 CNY    |
-| *人*                                  | 5 CNY    | wu*                                              | 10 CNY    |
-| 云*                                   | 2.76 CNY | 不对味的雪碧                                     | 10 CNY    |
-| w**                                   | 6.6 CNY  | [帕斯卡的芦苇](https://github.com/xiaoxianzi-99) | 10 CNY    |
-| 不**                                  | 20 CNY   | 曾**                                             | 20 CNY    |
-| *人*                                  | 20 CNY   | *人*                                             | 18.88 CNY |
-| Lucci                                 | 9.9 CNY  | *人*                                             | 5 CNY     |
-| 宋**                                  | 5 CNY    | 翰**                                             | 5 CNY     |
+- 感谢原作者 [ZhuJHua](https://github.com/ZhuJHua/moodiary) 提供的优秀项目基础
+- 感谢 Flutter 团队提供出色的框架
+- 感谢开源社区的宝贵贡献
