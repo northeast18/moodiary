@@ -1,0 +1,174 @@
+/// This is copied from Cargokit (which is the official way to use it currently)
+/// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
+
+import java.nio.file.Paths
+import org.apache.tools.ant.taskdefs.condition.Os
+
+CargoKitPlugin.file = buildscript.sourceFile
+
+apply plugin: CargoKitPlugin
+
+class CargoKitExtension {
+    String manifestDir; // Relative path to folder containing Cargo.toml
+    String libname; // Library name within Cargo.toml. Must be a cdylib
+}
+
+abstract class CargoKitBuildTask extends DefaultTask {
+
+    @Input
+    String buildMode
+
+    @Input
+    String buildDir
+
+    @Input
+    String outputDir
+
+    @Input
+    String ndkVersion
+
+    @Input
+    String sdkDirectory
+
+    @Input
+    int compileSdkVersion;
+
+    @Input
+    int minSdkVersion;
+
+    @Input
+    String pluginFile
+
+    @Input
+    List<String> targetPlatforms
+
+    @TaskAction
+    def build() {
+        if (project.cargokit.manifestDir == null) {
+            throw new GradleException("Property 'manifestDir' must be set on cargokit extension");
+        }
+
+        if (project.cargokit.libname == null) {
+            throw new GradleException("Property 'libname' must be set on cargokit extension");
+        }
+
+        def executableName = Os.isFamily(Os.FAMILY_WINDOWS) ? "run_build_tool.cmd" : "run_build_tool.sh"
+        def path = Paths.get(new File(pluginFile).parent, "..", executableName);
+
+        def manifestDir = Paths.get(project.buildscript.sourceFile.parent, project.cargokit.manifestDir)
+
+        def rootProjectDir = project.rootProject.projectDir
+
+        if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
+            project.exec {
+                commandLine 'chmod', '+x', path
+            }
+        }
+
+        project.exec {
+            executable path
+            args "build-gradle"
+            environment "CARGOKIT_ROOT_PROJECT_DIR", rootProjectDir
+            environment "CARGOKIT_TOOL_TEMP_DIR", "${buildDir}/build_tool"
+            environment "CARGOKIT_MANIFEST_DIR", manifestDir
+            environment "CARGOKIT_CONFIGURATION", buildMode
+            environment "CARGOKIT_TARGET_TEMP_DIR", buildDir
+            environment "CARGOKIT_OUTPUT_DIR", outputDir
+            environment "CARGOKIT_NDK_VERSION", ndkVersion
+            environment "CARGOKIT_SDK_DIR", sdkDirectory
+            environment "CARGOKIT_COMPILE_SDK_VERSION", compileSdkVersion
+            environment "CARGOKIT_MIN_SDK_VERSION", minSdkVersion
+            environment "CARGOKIT_TARGET_PLATFORMS", targetPlatforms.join(",")
+            environment "CARGOKIT_JAVA_HOME", System.properties['java.home']
+        }
+    }
+}
+
+class CargoKitPlugin implements Plugin<Project> {
+
+    static String file;
+
+    @Override
+    void apply(Project project) {
+        project.extensions.create("cargokit", CargoKitExtension)
+
+        // 等待根项目被完全评估
+        project.rootProject.afterEvaluate {
+            // 尝试找到 app 项目
+            def appProject = project.rootProject.findProject(':app')
+
+            if (appProject == null) {
+                print("App project not found, CargoKit plugin will not be applied.")
+                return
+            }
+
+            // 等待 app 项目被完全评估
+            appProject.afterEvaluate {
+                // 检查 app 项目是否有 android 插件
+                if (!appProject.plugins.hasPlugin('com.android.application')) {
+                    print("App project doesn't have android application plugin, CargoKit plugin will not be applied.")
+                    return
+                }
+
+                setupCargoKitBuild(project, appProject)
+            }
+        }
+    }
+
+    private void setupCargoKitBuild(Project project, def appProject) {
+        // 在 moodiary_rust 项目被评估后执行
+        project.afterEvaluate {
+            def cargoBuildDir = "${project.buildDir}/build"
+
+            project.android.libraryVariants.all { variant ->
+                final buildType = variant.buildType.name
+
+                def cargoOutputDir = "${project.buildDir}/jniLibs/${buildType}";
+                def jniLibs = project.android.sourceSets.maybeCreate(buildType).jniLibs;
+                jniLibs.srcDir(new File(cargoOutputDir))
+
+                // 默认目标平台
+                def platforms = ["android-arm64", "android-arm", "android-x64"]
+
+                // Debug 构建时添加 x86
+                if (buildType == "debug") {
+                    platforms.add("android-x86")
+                }
+
+                // 获取 app 项目的配置（直接使用字符串值）
+                def ndkVersion = appProject.extensions.android.ndkVersion
+                def sdkDirectory = appProject.extensions.android.sdkDirectory.toString()
+                def minSdkVersion = appProject.extensions.android.defaultConfig.minSdkVersion.apiLevel
+                // compileSdkVersion 可能是 "android-36" 格式
+                def compileSdkVersionString = appProject.extensions.android.compileSdkVersion.toString()
+                def compileSdkVersion = compileSdkVersionString.replaceAll("android-", "") as int
+
+                def taskName = "cargokitCargoBuild${project.cargokit.libname.capitalize()}${buildType.capitalize()}";
+
+                if (project.tasks.findByName(taskName)) {
+                    return
+                }
+
+                if (ndkVersion == null) {
+                    throw new GradleException("Please set 'android.ndkVersion' in 'app/build.gradle'.")
+                }
+
+                def task = project.tasks.create(taskName, CargoKitBuildTask.class) {
+                    buildMode = variant.buildType.name
+                    buildDir = cargoBuildDir
+                    outputDir = cargoOutputDir
+                    ndkVersion = ndkVersion
+                    sdkDirectory = sdkDirectory
+                    minSdkVersion = minSdkVersion
+                    compileSdkVersion = compileSdkVersion
+                    targetPlatforms = platforms
+                    pluginFile = CargoKitPlugin.file
+                }
+
+                // 设置任务依赖
+                project.tasks.findByName("merge${buildType.capitalize()}NativeLibs")?.dependsOn task
+                task.outputs.upToDateWhen { false }
+            }
+        }
+    }
+}

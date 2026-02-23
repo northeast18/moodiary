@@ -1,0 +1,73 @@
+// The Android Gradle Plugin builds the native code with the Android NDK.
+
+group 'com.flutter_rust_bridge.moodiary_rust'
+version '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.1'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.flutter_rust_bridge.moodiary_rust'
+    compileSdk 36
+    ndkVersion "28.0.13004108"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    defaultConfig {
+        minSdkVersion 26
+    }
+
+    buildTypes {
+        release {
+            // 在构建 release 时调用 CargoKit 构建脚本
+            // 这将在 moodiary_rust 模块构建时触发 Rust 库的构建
+        }
+        debug {
+        }
+    }
+}
+
+// 手动配置 CargoKit 构建
+// 注意：这里使用项目配置来直接访问 app 模块的属性
+gradle.projectsEvaluated {
+    def appProject = rootProject.findProject(':app')
+    if (appProject != null && appProject.plugins.hasPlugin('com.android.application')) {
+        // 为每个 buildType 创建 CargoKit 构建任务
+        android.libraryVariants.all { variant ->
+            def buildType = variant.name
+            def taskName = "cargokitCargoBuildMoodiary_rust${buildType.capitalize()}"
+
+            if (tasks.findByName(taskName)) {
+                return
+            }
+
+            // 创建一个占位任务，实际的 Rust 构建可能需要手动运行
+            // 或者使用 flutter_rust_bridge 的其他集成方式
+            tasks.create(name: taskName) {
+                doLast {
+                    println "CargoKit build task for ${buildType} - Rust library build needs to be configured"
+                }
+            }
+        }
+    }
+}

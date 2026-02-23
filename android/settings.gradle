@@ -1,0 +1,53 @@
+pluginManagement {
+    def flutterSdkPath = {
+        def properties = new Properties()
+        file("local.properties").withInputStream { properties.load(it) }
+        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        return flutterSdkPath
+    }()
+
+    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+
+    repositories {
+        maven { url "https://maven.aliyun.com/repository/google" }
+        maven { url "https://maven.aliyun.com/repository/public" }
+        maven { url "https://maven.aliyun.com/repository/jcenter" }
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url "https://storage.googleapis.com/download.flutter.io" }
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://developer.hihonor.com/repo' }
+        maven { url 'https://developer.huawei.com/repo' }
+    }
+}
+
+plugins {
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+    id "com.android.application" version '8.9.1' apply false
+    id "org.jetbrains.kotlin.android" version "2.1.20" apply false
+}
+
+// 首先包含 app 模块
+include ":app"
+
+// 手动包含 moodiary_rust 插件
+// 必须在 app 之后包含，这样 CargoKit 才能找到 FlutterPlugin
+include ':moodiary_rust'
+project(':moodiary_rust').projectDir = new File(settingsDir, '../rust_builder/android')
+
+// 包含其他 Flutter 插件
+def flutterProjectRoot = rootProject.projectDir.parentFile.toPath()
+
+def plugins = new Properties()
+def pluginsFile = new File(flutterProjectRoot.toFile(), '.flutter-plugins')
+if (pluginsFile.exists()) {
+    pluginsFile.withReader('UTF-8') { reader -> plugins.load(reader) }
+
+    plugins.each { name, path ->
+        def pluginDirectory = flutterProjectRoot.resolve(path).resolve('android').toFile()
+        include ":$name"
+        project(":$name").projectDir = pluginDirectory
+    }
+}

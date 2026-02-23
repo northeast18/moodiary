@@ -1,0 +1,160 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+if (flutterVersionCode == null) {
+    flutterVersionCode = "1"
+}
+
+def flutterVersionName = localProperties.getProperty("flutter.versionName")
+if (flutterVersionName == null) {
+    flutterVersionName = "1.0"
+}
+
+android {
+    namespace = "cn.yooss.moodiary"
+    compileSdk = 36
+    ndkVersion = "28.0.13004108"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_21.toString()
+    }
+
+    signingConfigs {
+        config {
+            storeFile file('key.jks')
+            storePassword localProperties.getProperty('storePassword')
+            keyPassword localProperties.getProperty('keyPassword')
+            keyAlias 'key0'
+
+            enableV3Signing true
+        }
+    }
+    defaultConfig {
+        applicationId = "cn.yooss.moodiary"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = flutterVersionCode.toInteger()
+        versionName = flutterVersionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.debug
+            resValue "string", "app_name", "Moodiary Debug"
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        profile {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // 将 Rust 库的输出目录添加到 jniLibs 源
+    sourceSets {
+        main {
+            jniLibs.srcDirs += ["${buildDir}/rust_jniLibs"]
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+// 手动配置 Rust 库构建
+task buildRustLib {
+    doFirst {
+        println "Building Rust library for moodiary..."
+
+        def projectRootDir = file('../..').absolutePath
+        def rustProjectDir = new File(projectRootDir, 'rust').absolutePath
+        def cargokitDir = new File(projectRootDir, 'rust_builder/cargokit').absolutePath
+        def buildOutputDir = file("${buildDir}/rust_jniLibs").absolutePath
+        def buildTempDir = file("${buildDir}/rust_build_temp").absolutePath
+        def toolTempDir = file("${buildDir}/rust_tool_temp").absolutePath
+        def androidSdkDir = android.sdkDirectory.absolutePath
+        def ndkVersion = android.ndkVersion
+
+        println "Project root: ${projectRootDir}"
+        println "Rust project: ${rustProjectDir}"
+        println "CargoKit: ${cargokitDir}"
+        println "Build output: ${buildOutputDir}"
+        println "Build temp: ${buildTempDir}"
+        println "Tool temp: ${toolTempDir}"
+        println "Android SDK: ${androidSdkDir}"
+        println "NDK version: ${ndkVersion}"
+
+        def buildScript = new File(cargokitDir, "run_build_tool.sh")
+        exec {
+            executable buildScript.absolutePath
+            args "build-gradle"
+            environment "CARGOKIT_ROOT_PROJECT_DIR", projectRootDir
+            environment "CARGOKIT_TOOL_TEMP_DIR", toolTempDir
+            environment "CARGOKIT_TARGET_TEMP_DIR", buildTempDir
+            environment "CARGOKIT_MANIFEST_DIR", rustProjectDir
+            environment "CARGOKIT_OUTPUT_DIR", buildOutputDir
+            environment "CARGOKIT_CONFIGURATION", "release"
+            environment "CARGOKIT_TARGET_PLATFORMS", "android-arm64,android-arm,android-x64"
+            environment "CARGOKIT_COMPILE_SDK_VERSION", "36"
+            environment "CARGOKIT_MIN_SDK_VERSION", "26"
+            environment "CARGOKIT_SDK_DIR", androidSdkDir
+            environment "CARGOKIT_NDK_VERSION", ndkVersion
+            environment "CARGOKIT_JAVA_HOME", System.getProperty("java.home")
+        }
+
+        println "Rust library built successfully"
+    }
+}
+
+// 在构建 native 库之前构建 Rust 库
+afterEvaluate {
+    tasks.findByName('assembleDebug')?.dependsOn buildRustLib
+    tasks.findByName('assembleRelease')?.dependsOn buildRustLib
+
+    // 复制 Rust 库到 jniLibs 目录
+    def copyRustLibs = tasks.create("copyRustLibs") {
+        doLast {
+            def rustLibDir = file("${buildDir}/rust_jniLibs/release")
+            def jniLibsDir = file("${projectDir}/src/main/jniLibs")
+            if (rustLibDir.exists()) {
+                copy {
+                    from rustLibDir
+                    into jniLibsDir
+                    include "**/*.so"
+                }
+                println "Rust libraries copied to jniLibs"
+            }
+        }
+    }
+    tasks.findByName('assembleDebug')?.dependsOn copyRustLibs
+}
+
+dependencies {
+    implementation 'com.github.gzu-liyujiang:Android_CN_OAID:4.2.11'
+    implementation 'com.google.android.material:material:1.12.0'
+    // 添加对 Rust FFI 插件的依赖
+    implementation project(':moodiary_rust')
+}
