@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/github/license/northeast18/moodiary?style=for-the-badge&color=4ac6b7">
 </div>
 
-> 本项目基于 [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary) 进行维护和修复。原作者项目已停止更新，本 fork 版本主要修复了使用中发现的 bug，并实现了一些新功能。
+> 本项目基于 [ZhuJHua/moodiary](https://github.com/ZhuJHua/moodiary) 进行维护和修复。原作者项目已停止更新很长时间，本 fork 版本主要修复了使用中发现的 bug，并实现了一些新功能。
 
 ## ✨ 功能特性
 
@@ -37,9 +37,10 @@
 
 ### Bug 修复
 
-- **修复 WebDAV 同步加密上传功能**：修复了 Rust 库初始化问题，使得加密同步功能可以正常工作
+- **修复 WebDAV 同步加密上传功能**：修复webdav加密同步功能中只加密文字，不加密照片、视频等富文本的bug，加密同步功能可以正常工作
 - **修复日记数据兼容性**：修复了旧版日记数据缺少 `show` 字段导致的加载失败问题
 - **修复 Rust 库打包问题**：修复了 Rust 动态库未正确打包到 APK 的问题
+- **移除了日记内容封面显示大图的问题**：移除了在日记详情页面使用日记里面图片当做封面图的问题，界面更简洁美观
 
 ### 依赖更新
 
