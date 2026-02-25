@@ -333,13 +333,13 @@ class FileUtil {
       if (Bind.isRegistered<AudioPlayerLogic>(tag: path)) {
         Bind.delete<AudioPlayerLogic>(tag: path);
       }
-
-      // 并行删除文件
-      await Future.wait([
-        FileUtil.deleteMediaFiles(imagesToDelete, MediaType.image.value),
-        FileUtil.deleteMediaFiles(audiosToDelete, MediaType.audio.value),
-        FileUtil.deleteMediaFiles(videosToDelete, MediaType.video.value),
-      ]);
     }
+
+    // 并行删除文件
+    await Future.wait([
+      FileUtil.deleteMediaFiles(imagesToDelete, MediaType.image.value),
+      FileUtil.deleteMediaFiles(audiosToDelete, MediaType.audio.value),
+      FileUtil.deleteMediaFiles(videosToDelete, MediaType.video.value),
+    ]);
   }
 }

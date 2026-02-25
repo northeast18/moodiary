@@ -4,10 +4,12 @@ import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:moodiary/api/api.dart';
+import 'package:moodiary/common/models/ai_provider.dart';
 import 'package:moodiary/common/models/hunyuan.dart';
 import 'package:moodiary/persistence/isar.dart';
+import 'package:moodiary/utils/ai_config_util.dart';
 import 'package:moodiary/utils/array_util.dart';
-import 'package:moodiary/utils/signature_util.dart';
+import 'package:moodiary/utils/notice_util.dart';
 
 import 'analyse_state.dart';
 
@@ -76,27 +78,59 @@ class AnalyseLogic extends GetxController {
   }
 
   Future<void> getAi() async {
-    final check = SignatureUtil.checkTencent();
-    if (check != null) {
-      state.reply = '';
-      update();
-      final stream = await Api.getHunYuan(check['id']!, check['key']!, [
-        const Message(
-          role: 'system',
-          content:
-              '我会给你一组来自一款日记APP的数据，其中包含了在某一段时间内，日记所记录的心情情况，根据这些数据，分析用户最近的心情状况，并给出合理的建议，心情的值是一个从0.0到1.0的浮点数，从小到大表示心情从坏到好，给你的值是一个Map，其中的Key是心情指数，Value是对应心情指数出现的次数。给出的输出应当是结论，不需要给出分析过程，不需要其他反馈。',
-        ),
-        Message(role: 'user', content: '心情：${state.moodMap.toString()}'),
-      ], 0);
-      stream?.listen((content) {
-        if (content != '' && content.contains('data')) {
-          final HunyuanResponse result = HunyuanResponse.fromJson(
-            jsonDecode(content.split('data: ')[1]),
-          );
-          state.reply += result.choices!.first.delta!.content!;
-          update();
-        }
-      });
+    // 检查API配置
+    if (!AIConfigUtil.checkApiKeyConfigured()) {
+      final providerType = AIConfigUtil.getProviderType();
+      if (providerType == AIProviderType.hunyuan) {
+        toast.info(message: '请先在实验室配置腾讯云ID和Key');
+      } else {
+        toast.info(message: '请先在智能助手中配置API Key');
+      }
+      return;
     }
+
+    state.reply = '';
+    update();
+
+    final providerType = AIConfigUtil.getProviderType();
+
+    final stream = await Api.getAIChat([
+      const Message(
+        role: 'system',
+        content:
+            '我会给你一组来自一款日记APP的数据，其中包含了在某一段时间内，日记所记录的心情情况，根据这些数据，分析用户最近的心情状况，并给出合理的建议，心情的值是一个从0.0到1.0的浮点数，从小到大表示心情从坏到好，给你的值是一个Map，其中的Key是心情指数，Value是对应心情指数出现的次数。给出的输出应当是结论，不需要给出分析过程，不需要其他反馈。',
+      ),
+      Message(role: 'user', content: '心情：${state.moodMap.toString()}'),
+    ]);
+
+    if (stream == null) {
+      toast.error(message: '无法连接到AI服务');
+      return;
+    }
+
+    stream.listen((content) {
+      if (content != '' && content.contains('data')) {
+        try {
+          final dataStr = content.split('data: ')[1];
+
+          if (providerType == AIProviderType.hunyuan) {
+            final HunyuanResponse result = HunyuanResponse.fromJson(
+              jsonDecode(dataStr),
+            );
+            state.reply += result.choices!.first.delta!.content!;
+          } else {
+            // OpenAI格式
+            final Map<String, dynamic> result = jsonDecode(dataStr);
+            final delta = result['choices']?[0]?['delta'];
+            if (delta != null && delta['content'] != null) {
+              state.reply += delta['content'];
+            }
+          }
+          update();
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+    });
   }
 }

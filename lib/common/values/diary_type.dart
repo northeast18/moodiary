@@ -11,7 +11,10 @@ enum DiaryType {
   const DiaryType(this.value);
 
   static DiaryType fromValue(String value) {
-    return DiaryType.values.firstWhere((e) => e.value == value);
+    return DiaryType.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => DiaryType.richText, // 默认返回 richText 类型
+    );
   }
 }
 

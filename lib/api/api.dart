@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:moodiary/common/models/ai_provider.dart';
 import 'package:moodiary/common/models/geo.dart';
 import 'package:moodiary/common/models/github.dart';
 import 'package:moodiary/common/models/hitokoto.dart';
@@ -13,6 +14,7 @@ import 'package:moodiary/common/models/image.dart';
 import 'package:moodiary/common/models/weather.dart';
 import 'package:moodiary/l10n/l10n.dart';
 import 'package:moodiary/persistence/pref.dart';
+import 'package:moodiary/utils/ai_config_util.dart';
 import 'package:moodiary/utils/http_util.dart';
 import 'package:moodiary/utils/notice_util.dart';
 import 'package:moodiary/utils/signature_util.dart';
@@ -59,6 +61,93 @@ class Api {
       'https://hunyuan.tencentcloudapi.com',
       header: header.toJson(),
       data: body,
+    );
+  }
+
+  /// OpenAI格式的API调用
+  /// 支持OpenAI、智谱、DeepSeek、硅基流动、英伟达、Gemini等
+  static Future<Stream<String>?> getOpenAIChat(
+    String baseUrl,
+    String apiKey,
+    String model,
+    List<Message> messages,
+  ) async {
+    // 请求头
+    final header = {
+      'Authorization': 'Bearer $apiKey',
+      'Content-Type': 'application/json',
+    };
+
+    // 请求正文 - OpenAI格式
+    final body = {
+      'model': model,
+      'messages': messages.map((m) => {
+        'role': m.role,
+        'content': m.content,
+      }).toList(),
+      'stream': true,
+    };
+
+    // 拼接完整URL
+    final url = baseUrl.endsWith('/chat/completions')
+        ? baseUrl
+        : '$baseUrl/chat/completions';
+
+    // 发起请求
+    return await HttpUtil().postStream(
+      url,
+      header: header,
+      data: body,
+    );
+  }
+
+  /// 通用的AI对话接口
+  /// 根据当前配置自动选择API
+  static Future<Stream<String>?> getAIChat(
+    List<Message> messages,
+  ) async {
+    final providerType = AIConfigUtil.getProviderType();
+
+    // 腾讯混元使用特殊接口
+    if (providerType == AIProviderType.hunyuan) {
+      final config = AIConfigUtil.getTencentConfig();
+      if (config == null) {
+        toast.info(message: '请先配置腾讯云ID和Key');
+        return null;
+      }
+
+      // 获取模型索引
+      final model = AIConfigUtil.getCurrentModel();
+      final modelIndex = switch (model) {
+        'hunyuan-lite' => 0,
+        'hunyuan-standard' => 1,
+        'hunyuan-pro' => 2,
+        'hunyuan-turbo' => 3,
+        _ => 0,
+      };
+
+      return await getHunYuan(
+        config['id']!,
+        config['key']!,
+        messages,
+        modelIndex,
+      );
+    }
+
+    // 其他提供商使用OpenAI格式
+    final provider = AIConfigUtil.getCurrentProvider();
+    final apiKey = AIConfigUtil.getApiKey();
+
+    if (apiKey == null || apiKey.isEmpty) {
+      toast.info(message: '请先配置API Key');
+      return null;
+    }
+
+    return await getOpenAIChat(
+      provider.baseUrl,
+      apiKey,
+      AIConfigUtil.getCurrentModel(),
+      messages,
     );
   }
 

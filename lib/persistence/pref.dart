@@ -93,6 +93,14 @@ class PrefUtil {
     'language',
     // webdav加密
     'syncEncryption',
+    // AI配置
+    'ai_provider_type',
+    'ai_model',
+    'ai_api_key',
+    'ai_base_url',
+    'ai_custom_models',
+    'ai_custom_provider_name',
+    'ai_all_provider_models',
   };
 
   static Future<void> initPref() async {

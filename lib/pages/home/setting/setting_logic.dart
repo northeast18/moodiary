@@ -8,6 +8,7 @@ import 'package:moodiary/pages/home/home_logic.dart';
 import 'package:moodiary/persistence/pref.dart';
 import 'package:moodiary/persistence/secure_storage.dart';
 import 'package:moodiary/router/app_routes.dart';
+import 'package:moodiary/utils/ai_config_util.dart';
 import 'package:moodiary/utils/file_util.dart';
 import 'package:moodiary/utils/notice_util.dart';
 
@@ -80,13 +81,10 @@ class SettingLogic extends GetxController {
   }
 
   Future<void> toAi() async {
-    if (PrefUtil.getValue<String>('tencentId') != null &&
-        PrefUtil.getValue<String>('tencentKey') != null) {
-      HapticFeedback.selectionClick();
-      Get.toNamed(AppRoutes.assistantPage);
-    } else {
-      toast.info(message: '请先配置Key');
-    }
+    // 移除配置检查，允许用户直接进入智能助手页面进行配置
+    // AIConfigUtil.checkApiKeyConfigured() 会在发送消息时检查
+    HapticFeedback.selectionClick();
+    Get.toNamed(AppRoutes.assistantPage);
   }
 
   Future<void> toCategoryManager() async {

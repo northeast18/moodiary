@@ -42,7 +42,7 @@ class DiaryRender extends StatefulWidget {
 }
 
 class _DiaryRenderState extends State<DiaryRender> {
-  late final QuillController? _quillController;
+  QuillController? _quillController;
 
   Diary get diary => widget.diary;
 
@@ -51,12 +51,21 @@ class _DiaryRenderState extends State<DiaryRender> {
 
   @override
   void initState() {
-    if (diary.type != DiaryType.markdown.value) {
-      _quillController = QuillController(
-        document: Document.fromJson(jsonDecode(diary.content)),
-        readOnly: true,
-        selection: const TextSelection.collapsed(offset: 0),
-      );
+    if (diary.type == DiaryType.markdown.value) {
+      // Markdown 类型，不需要初始化 QuillController
+    } else {
+      // 尝试解析为 Quill Delta 格式
+      try {
+        _quillController = QuillController(
+          document: Document.fromJson(jsonDecode(diary.content)),
+          readOnly: true,
+          selection: const TextSelection.collapsed(offset: 0),
+        );
+      } catch (e) {
+        // 如果解析失败，创建一个空的 QuillController
+        // 并将日记类型视为 markdown
+        _quillController = QuillController.basic();
+      }
     }
     super.initState();
   }
@@ -71,10 +80,14 @@ class _DiaryRenderState extends State<DiaryRender> {
   void didUpdateWidget(covariant DiaryRender oldWidget) {
     if (oldWidget.diary != diary ||
         oldWidget.customColorScheme != widget.customColorScheme) {
-      if (diary.type != DiaryType.markdown.value) {
-        _quillController?.document = Document.fromJson(
-          jsonDecode(diary.content),
-        );
+      if (diary.type != DiaryType.markdown.value && _quillController != null) {
+        try {
+          _quillController!.document = Document.fromJson(
+            jsonDecode(diary.content),
+          );
+        } catch (e) {
+          // 解析失败，保持现有状态
+        }
       }
     }
     super.didUpdateWidget(oldWidget);
@@ -107,7 +120,12 @@ class _DiaryRenderState extends State<DiaryRender> {
 
   @override
   Widget build(BuildContext context) {
-    return diary.type == DiaryType.markdown.value
+    // 如果是 markdown 类型，或者 QuillController 没有被正确初始化，使用 Markdown 渲染
+    final isMarkdown = diary.type == DiaryType.markdown.value ||
+        _quillController == null ||
+        _quillController!.document.isEmpty();
+
+    return isMarkdown
         ? Padding(
           padding: const EdgeInsets.all(8.0),
           child: _buildMarkdownWidget(

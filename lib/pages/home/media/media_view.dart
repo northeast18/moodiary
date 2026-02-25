@@ -130,14 +130,26 @@ class MediaPage extends StatelessWidget {
                                     MediaType.image => MediaImageComponent(
                                       dateTime: datetime,
                                       imageList: fileList,
+                                      onRefresh: () => logic.getFilePath(
+                                        MediaType.image,
+                                        isInit: false,
+                                      ),
                                     ),
                                     MediaType.audio => MediaAudioComponent(
                                       dateTime: datetime,
                                       audioList: fileList,
+                                      onRefresh: () => logic.getFilePath(
+                                        MediaType.audio,
+                                        isInit: false,
+                                      ),
                                     ),
                                     MediaType.video => MediaVideoComponent(
                                       dateTime: datetime,
                                       videoList: fileList,
+                                      onRefresh: () => logic.getFilePath(
+                                        MediaType.video,
+                                        isInit: false,
+                                      ),
                                     ),
                                   };
                                 },

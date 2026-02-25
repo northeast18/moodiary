@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,8 @@ import 'package:moodiary/router/app_pages.dart';
 import 'package:moodiary/utils/aes_util.dart';
 import 'package:moodiary/utils/log_util.dart';
 import 'package:moodiary/utils/notice_util.dart';
+import 'package:moodiary/utils/permission_util.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:throttling/throttling.dart';
 
 Future<String?> showQrScanner({
@@ -16,6 +19,70 @@ Future<String?> showQrScanner({
   Duration? validDuration,
   String? prefix,
 }) async {
+  // 请求相机权限
+  final permissionResult = await PermissionUtil.checkPermissionWithResult(
+    Permission.camera,
+  );
+  if (!permissionResult.granted) {
+    // 权限被拒绝，显示提示信息
+    if (context.mounted) {
+      if (permissionResult.isPermanentlyDenied) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('相机权限被拒绝'),
+            content: const Text('请在设置中授予相机权限以使用扫描功能'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+                child: const Text('去设置'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // 权限被拒绝但不是永久拒绝，显示对话框引导用户授权
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('需要相机权限'),
+            content: const Text('扫描二维码需要使用相机，请授予相机权限'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  // 再次请求权限
+                  final status = await Permission.camera.request();
+                  if (status.isGranted && context.mounted) {
+                    // 权限已授予，重新调用扫描
+                    showQrScanner(
+                      context: context,
+                      validDuration: validDuration,
+                      prefix: prefix,
+                    );
+                  }
+                },
+                child: const Text('去授权'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
   return Navigator.push<String?>(
     context,
     MoodiaryFadeInPageRoute(
@@ -52,9 +119,11 @@ class _QrScannerState extends State<QrScanner>
   late final MobileScannerController _scannerController =
       MobileScannerController(
         invertImage: true,
-        autoStart: false,
+        autoStart: true,
         cameraResolution: const Size.square(640),
         formats: [BarcodeFormat.qrCode],
+        detectionSpeed: DetectionSpeed.normal,
+        facing: CameraFacing.back,
       );
 
   late final Throttling _throttling = Throttling();
@@ -67,9 +136,21 @@ class _QrScannerState extends State<QrScanner>
     TorchState.unavailable,
   );
 
+  // 添加错误状态
+  String? _errorMessage;
+
   @override
   void initState() {
-    _subscription = _scannerController.barcodes.listen(_handleBarcode);
+    _subscription = _scannerController.barcodes.listen(
+      _handleBarcode,
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = '摄像头错误: $error';
+          });
+        }
+      },
+    );
 
     _appLifecycleListener = AppLifecycleListener(
       onStateChange: (state) {
@@ -82,8 +163,17 @@ class _QrScannerState extends State<QrScanner>
           case AppLifecycleState.paused:
             return;
           case AppLifecycleState.resumed:
-            _subscription = _scannerController.barcodes.listen(_handleBarcode);
-            unawaited(_scannerController.start());
+            _subscription = _scannerController.barcodes.listen(
+              _handleBarcode,
+              onError: (error) {
+                if (mounted) {
+                  setState(() {
+                    _errorMessage = '摄像头错误: $error';
+                  });
+                }
+              },
+            );
+            unawaited(_scannerController.start().catchError((e) { if(mounted) setState(() => _errorMessage = "无法启动摄像头: $e"); }));
           case AppLifecycleState.inactive:
             unawaited(_subscription?.cancel());
             _subscription = null;
@@ -96,7 +186,22 @@ class _QrScannerState extends State<QrScanner>
         _torchState.value = _scannerController.value.torchState;
       }
     });
-    unawaited(_scannerController.start());
+    unawaited(
+      _scannerController.start().catchError((error) {
+        if (mounted) {
+          setState(() {
+            if (error.toString().contains('permission')) {
+              _errorMessage = '相机权限被拒绝，请在设置中授权';
+            } else if (error.toString().contains('busy') ||
+                error.toString().contains('in use')) {
+              _errorMessage = '相机正被其他应用占用';
+            } else {
+              _errorMessage = '无法启动摄像头: $error';
+            }
+          });
+        }
+      }),
+    );
     super.initState();
   }
 
@@ -211,6 +316,43 @@ class _QrScannerState extends State<QrScanner>
               );
             },
           ),
+          // 错误提示
+          if (_errorMessage != null)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red),
+                        const SizedBox(height: 8),
+                        Text(
+                          '摄像头无法启动',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage ?? '未知错误',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.close),
+                          label: const Text('返回'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             bottom: MediaQuery.sizeOf(context).height / 2 - 300,
             child: ValueListenableBuilder(
@@ -264,12 +406,11 @@ class _CornerBorderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth = strokeWidth
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final path = Path();
 
@@ -311,10 +452,9 @@ class _ScannerOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.black54
-          ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = Colors.black54
+      ..style = PaintingStyle.fill;
 
     final outer = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
 

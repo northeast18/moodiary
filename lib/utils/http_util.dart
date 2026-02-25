@@ -101,22 +101,30 @@ class HttpUtil {
     Map<String, dynamic>? header,
     Object? data,
   }) async {
-    final Response<ResponseBody> response = await dio.post(
-      path,
-      options: Options(responseType: ResponseType.stream, headers: header),
-      data: data,
-    );
+    try {
+      final Response<ResponseBody> response = await dio.post(
+        path,
+        options: Options(responseType: ResponseType.stream, headers: header),
+        data: data,
+      );
 
-    final StreamTransformer<Uint8List, List<int>> transformer =
-        StreamTransformer.fromHandlers(
-          handleData: (data, sink) {
-            sink.add(List<int>.from(data));
-          },
-        );
-    return response.data?.stream
-        .transform(transformer)
-        .transform(const Utf8Decoder())
-        .transform(const LineSplitter());
+      final StreamTransformer<Uint8List, List<int>> transformer =
+          StreamTransformer.fromHandlers(
+            handleData: (data, sink) {
+              sink.add(List<int>.from(data));
+            },
+          );
+      return response.data?.stream
+          .transform(transformer)
+          .transform(const Utf8Decoder())
+          .transform(const LineSplitter());
+    } on DioException catch (e) {
+      // 记录详细的错误信息
+      final errorBody = e.response?.data?.toString() ?? 'No response body';
+      logger.d('Stream request failed: ${e.type} ${e.message}');
+      logger.d('Status: ${e.response?.statusCode}, Response: $errorBody');
+      rethrow;
+    }
   }
 
   Future<Response<T>> upload<T>(

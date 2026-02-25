@@ -194,7 +194,10 @@ class DiaryLogic extends GetxController with GetTickerProviderStateMixin {
         Bind.isRegistered<DiaryTabViewLogic>(tag: categoryId)) {
       await Bind.find<DiaryTabViewLogic>(tag: categoryId).updateDiary();
     }
-    await Bind.find<DiaryTabViewLogic>(tag: 'default').updateDiary();
+    // 只有在 default 控制器已注册时才刷新
+    if (Bind.isRegistered<DiaryTabViewLogic>(tag: 'default')) {
+      await Bind.find<DiaryTabViewLogic>(tag: 'default').updateDiary();
+    }
   }
 
   Future<void> refreshAll() async {
